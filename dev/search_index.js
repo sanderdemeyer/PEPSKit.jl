@@ -1,0 +1,3 @@
+var documenterSearchIndex = {"docs":
+[{"location":"lib/lib/","page":"Library","title":"Library","text":"Coming soon.","category":"page"},{"location":"man/intro/","page":"Manual","title":"Manual","text":"Coming soon.","category":"page"},{"location":"examples/","page":"Examples","title":"Examples","text":"Coming soon.","category":"page"},{"location":"#PEPSKit.jl","page":"Home","title":"PEPSKit.jl","text":"","category":"section"},{"location":"","page":"Home","title":"Home","text":"Tools for working with projected entangled-pair states","category":"page"},{"location":"","page":"Home","title":"Home","text":"It contracts, it optimizes, it may be broken at any point.","category":"page"}]
+}
