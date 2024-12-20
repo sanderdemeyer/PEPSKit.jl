@@ -1199,8 +1199,15 @@ Multiply edge tensor with incoming and outgoing gauge signs.
 ```
 """
 function fix_gauge_edge(
-    edge::CTMRGEdgeTensor, σ_in::CTMRGCornerTensor, σ_out::CTMRGCornerTensor
-)
+    edge::CTMRGEdgeTensor{S,3}, σ_in::CTMRGCornerTensor, σ_out::CTMRGCornerTensor
+) where {S}
+    @autoopt @tensor edge_fix[χ_in D_above D_below; χ_out] :=
+        σ_in[χ_in; χ1] * edge[χ1 D_above D_below; χ2] * conj(σ_out[χ_out; χ2])
+end
+
+function fix_gauge_edge(
+    edge::CTMRGEdgeTensor{S,2}, σ_in::CTMRGCornerTensor, σ_out::CTMRGCornerTensor
+) where {S}
     @autoopt @tensor edge_fix[χ_in D_above D_below; χ_out] :=
         σ_in[χ_in; χ1] * edge[χ1 D_above D_below; χ2] * conj(σ_out[χ_out; χ2])
 end
