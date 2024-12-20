@@ -202,8 +202,8 @@ function right_projector(E_1, C, E_2, U, isqS, ket::PEPSTensor, bra::PEPSTensor=
     return @autoopt @tensor P_right[χ_in; χ_out D_outabove D_outbelow] :=
         isqS[χ_in; χ1] *
         conj(U[χ1; χ2 D1 D2]) *
-        ket[d; D1 D5 D_outabove D1] *
-        conj(bra[d; D2 D6 D_outbelow D2]) *
+        ket[d; D3 D5 D_outabove D1] *
+        conj(bra[d; D4 D6 D_outbelow D2]) *
         E_2[χ2 D3 D4; χ3] *
         C[χ3; χ4] *
         E_1[χ4 D5 D6; χ_out]
