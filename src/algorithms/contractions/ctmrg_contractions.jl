@@ -1,4 +1,4 @@
-const CTMRGEdgeTensor{S} = AbstractTensorMap{S,3,1}
+const CTMRGEdgeTensor{S,N} = AbstractTensorMap{S,N,1}
 const CTMRGCornerTensor{S} = AbstractTensorMap{S,1,1}
 
 # Enlarged corner contractions
@@ -29,18 +29,41 @@ function enlarge_northwest_corner(
     )
 end
 function enlarge_northwest_corner(
-    E_west::CTMRGEdgeTensor,
+    E_west::CTMRGEdgeTensor{S,3},
     C_northwest::CTMRGCornerTensor,
-    E_north::CTMRGEdgeTensor,
+    E_north::CTMRGEdgeTensor{S,3},
     ket::PEPSTensor,
     bra::PEPSTensor=ket,
-)
+) where {S}
     return @autoopt @tensor corner[χ_S D_Sabove D_Sbelow; χ_E D_Eabove D_Ebelow] :=
         E_west[χ_S D1 D2; χ1] *
         C_northwest[χ1; χ2] *
         E_north[χ2 D3 D4; χ_E] *
         ket[d; D3 D_Eabove D_Sabove D1] *
         conj(bra[d; D4 D_Ebelow D_Sbelow D2])
+end
+
+function enlarge_northwest_corner(
+    (row, col), envs::CTMRGEnv, partfunc::PartitionFunction
+) where {S}
+    E_west = envs.edges[WEST, row, _prev(col, end)]
+    C_northwest = envs.corners[NORTHWEST, _prev(row, end), _prev(col, end)]
+    E_north = envs.edges[NORTH, _prev(row, end), col]
+    return enlarge_northwest_corner(
+        E_west, C_northwest, E_north, partfunc[row, col]
+    )
+end
+function enlarge_northwest_corner(
+    E_west::CTMRGEdgeTensor{S,2},
+    C_northwest::CTMRGCornerTensor,
+    E_north::CTMRGEdgeTensor{S,2},
+    partfunc::PartitionFunction
+) where {S}
+    return @autoopt @tensor corner[χ_S D_S; χ_E D_E] :=
+        E_west[χ_S D1; χ1] *
+        C_northwest[χ1; χ2] *
+        E_north[χ2 D2; χ_E] *
+        partfunc[D2 D_E; D_S D1]
 end
 
 """
@@ -58,8 +81,8 @@ coordinates, environments and state, or by directly providing the tensors.
 ```
 """
 function enlarge_northeast_corner(
-    (row, col), envs::CTMRGEnv, ket::InfinitePEPS, bra::InfinitePEPS=ket
-)
+    (row, col), envs::CTMRGEnv{S,3}, ket::InfinitePEPS, bra::InfinitePEPS=ket
+) where {S}
     E_north = envs.edges[NORTH, _prev(row, end), col]
     C_northeast = envs.corners[NORTHEAST, _prev(row, end), _next(col, end)]
     E_east = envs.edges[EAST, row, _next(col, end)]
@@ -68,18 +91,41 @@ function enlarge_northeast_corner(
     )
 end
 function enlarge_northeast_corner(
-    E_north::CTMRGEdgeTensor,
+    E_north::CTMRGEdgeTensor{S,3},
     C_northeast::CTMRGCornerTensor,
-    E_east::CTMRGEdgeTensor,
+    E_east::CTMRGEdgeTensor{S,3},
     ket::PEPSTensor,
     bra::PEPSTensor=ket,
-)
+) where {S}
     return @autoopt @tensor corner[χ_W D_Wabove D_Wbelow; χ_S D_Sabove D_Sbelow] :=
         E_north[χ_W D1 D2; χ1] *
         C_northeast[χ1; χ2] *
         E_east[χ2 D3 D4; χ_S] *
         ket[d; D1 D3 D_Sabove D_Wabove] *
         conj(bra[d; D2 D4 D_Sbelow D_Wbelow])
+end
+
+function enlarge_northeast_corner(
+    (row, col), envs::CTMRGEnv, partfunc::PartitionFunction
+) where {S}
+    E_north = envs.edges[NORTH, _prev(row, end), col]
+    C_northeast = envs.corners[NORTHEAST, _prev(row, end), _next(col, end)]
+    E_east = envs.edges[EAST, row, _next(col, end)]
+    return enlarge_northeast_corner(
+        E_north, C_northeast, E_east, partfunc[row, col]
+    )
+end
+function enlarge_northeast_corner(
+    E_north::CTMRGEdgeTensor{S,2},
+    C_northeast::CTMRGCornerTensor,
+    E_east::CTMRGEdgeTensor{S,2},
+    partfunc::PartitionFunction
+) where {S}
+    return @autoopt @tensor corner[χ_W D_W; χ_S D_S] :=
+        E_north[χ_W D1; χ1] *
+        C_northeast[χ1; χ2] *
+        E_east[χ2 D2; χ_S] *
+        partfunc[D1 D2; D_S D_W]
 end
 
 """
@@ -107,9 +153,9 @@ function enlarge_southeast_corner(
     )
 end
 function enlarge_southeast_corner(
-    E_east::CTMRGEdgeTensor,
+    E_east::CTMRGEdgeTensor{S,3},
     C_southeast::CTMRGCornerTensor,
-    E_south::CTMRGEdgeTensor,
+    E_south::CTMRGEdgeTensor{S,3},
     ket::PEPSTensor,
     bra::PEPSTensor=ket,
 )
@@ -119,6 +165,29 @@ function enlarge_southeast_corner(
         E_south[χ2 D3 D4; χ_W] *
         ket[d; D_Nabove D1 D3 D_Wabove] *
         conj(bra[d; D_Nbelow D2 D4 D_Wbelow])
+end
+
+function enlarge_southeast_corner(
+    (row, col), envs::CTMRGEnv, partfunc::PartitionFunction
+)
+    E_east = envs.edges[EAST, row, _next(col, end)]
+    C_southeast = envs.corners[SOUTHEAST, _next(row, end), _next(col, end)]
+    E_south = envs.edges[SOUTH, _next(row, end), col]
+    return enlarge_southeast_corner(
+        E_east, C_southeast, E_south, partfunc[row, col]
+    )
+end
+function enlarge_southeast_corner(
+    E_east::CTMRGEdgeTensor{S,2},
+    C_southeast::CTMRGCornerTensor,
+    E_south::CTMRGEdgeTensor{S,2},
+    partfunc::PartitionFunction
+)
+    return @autoopt @tensor corner[χ_N D_N; χ_W D_W] :=
+        E_east[χ_N D1; χ1] *
+        C_southeast[χ1; χ2] *
+        E_south[χ2 D2; χ_W] *
+        partfunc[d; D_N D1 D2 D_W]
 end
 
 """
@@ -146,9 +215,9 @@ function enlarge_southwest_corner(
     )
 end
 function enlarge_southwest_corner(
-    E_south::CTMRGEdgeTensor,
+    E_south::CTMRGEdgeTensor{S,3},
     C_southwest::CTMRGCornerTensor,
-    E_west::CTMRGEdgeTensor,
+    E_west::CTMRGEdgeTensor{S,3},
     ket::PEPSTensor,
     bra::PEPSTensor=ket,
 )
@@ -158,6 +227,29 @@ function enlarge_southwest_corner(
         E_west[χ2 D3 D4; χ_N] *
         ket[d; D_Nabove D_Eabove D1 D3] *
         conj(bra[d; D_Nbelow D_Ebelow D2 D4])
+end
+
+function enlarge_southwest_corner(
+    (row, col), envs::CTMRGEnv, partfunc::PartitionFunction
+)
+    E_south = envs.edges[SOUTH, _next(row, end), col]
+    C_southwest = envs.corners[SOUTHWEST, _next(row, end), _prev(col, end)]
+    E_west = envs.edges[WEST, row, _prev(col, end)]
+    return enlarge_southwest_corner(
+        E_south, C_southwest, E_west, partfunc[row, col]
+    )
+end
+function enlarge_southwest_corner(
+    E_south::CTMRGEdgeTensor{S,2},
+    C_southwest::CTMRGCornerTensor,
+    E_west::CTMRGEdgeTensor{S,2},
+    partfunc::PartitionFunction
+)
+    return @autoopt @tensor corner[χ_E D_E; χ_N D_N] :=
+        E_south[χ_E D1; χ1] *
+        C_southwest[χ1; χ2] *
+        E_west[χ2 D2; χ_N] *
+        partfunc[d; D_N D_E D1 D2]
 end
 
 # Projector contractions
@@ -186,6 +278,16 @@ function left_projector(E_1, C, E_2, V, isqS, ket::PEPSTensor, bra::PEPSTensor=k
         isqS[χ4; χ_out]
 end
 
+function left_projector(E_1, C, E_2, V, isqS, partfunc::PartitionFunction)
+    return @autoopt @tensor P_left[χ_in D_in; χ_out] :=
+        E_1[χ_in D1; χ1] *
+        C[χ1; χ2] *
+        E_2[χ2 D2; χ3] *
+        partfunc[D2 D3; D_in D1]
+        conj(V[χ4; χ3 D3])
+        isqS[χ4; χ_out]
+end
+
 """
     right_projector(E_1, C, E_2, U, isqS, ket::PEPSTensor, bra::PEPSTensor=ket)
 
@@ -202,8 +304,19 @@ function right_projector(E_1, C, E_2, U, isqS, ket::PEPSTensor, bra::PEPSTensor=
     return @autoopt @tensor P_right[χ_in; χ_out D_outabove D_outbelow] :=
         isqS[χ_in; χ1] *
         conj(U[χ1; χ2 D1 D2]) *
-        ket[d; D1 D5 D_outabove D1] *
-        conj(bra[d; D2 D6 D_outbelow D2]) *
+        ket[d; D3 D5 D_outabove D1] *
+        conj(bra[d; D4 D6 D_outbelow D2]) *
+        E_2[χ2 D3 D4; χ3] *
+        C[χ3; χ4] *
+        E_1[χ4 D5 D6; χ_out]
+end
+
+function right_projector(E_1, C, E_2, U, isqS, ket::PEPSTensor, bra::PEPSTensor=ket)
+    return @autoopt @tensor P_right[χ_in; χ_out D_outabove D_outbelow] :=
+        isqS[χ_in; χ1] *
+        conj(U[χ1; χ2 D1 D2]) *
+        ket[d; D3 D5 D_outabove D1] *
+        conj(bra[d; D4 D6 D_outbelow D2]) *
         E_2[χ2 D3 D4; χ3] *
         C[χ3; χ4] *
         E_1[χ4 D5 D6; χ_out]
