@@ -208,6 +208,7 @@ function CTMRGEnv(
     chi_south::S=chi_north,
     chi_west::S=chi_north;
     unitcell::Tuple{Int,Int}=(1, 1),
+    N = 3
 ) where {S<:Union{Int,ElementarySpace}}
     return CTMRGEnv(
         randn,
@@ -218,6 +219,7 @@ function CTMRGEnv(
         fill(chi_east, unitcell),
         fill(chi_south, unitcell),
         fill(chi_west, unitcell),
+        N,
     )
 end
 function CTMRGEnv(
@@ -230,6 +232,7 @@ function CTMRGEnv(
     chi_south::S=chi_north,
     chi_west::S=chi_north;
     unitcell::Tuple{Int,Int}=(1, 1),
+    N = 3
 ) where {S<:Union{Int,ElementarySpace}}
     return CTMRGEnv(
         f,
@@ -240,6 +243,7 @@ function CTMRGEnv(
         fill(chi_east, unitcell),
         fill(chi_south, unitcell),
         fill(chi_west, unitcell),
+        N,
     )
 end
 
@@ -266,6 +270,7 @@ function CTMRGEnv(
     chis_east::A=chis_north,
     chis_south::A=chis_north,
     chis_west::A=chis_north,
+    N::Int
 ) where {A<:AbstractMatrix{<:Union{Int,ElementarySpace}}}
     Ds_north = map(peps.A) do t
         return adjoint(space(t, 2))
@@ -282,6 +287,7 @@ function CTMRGEnv(
         _to_space.(chis_east),
         _to_space.(chis_south),
         _to_space.(chis_west),
+        N,
     )
 end
 
@@ -293,6 +299,7 @@ function CTMRGEnv(
     chis_east::A=chis_north,
     chis_south::A=chis_north,
     chis_west::A=chis_north,
+    N::Int
 ) where {A<:AbstractMatrix{<:Union{Int,ElementarySpace}}}
     Ds_north = map(peps.A) do t
         return adjoint(space(t, 2))
@@ -309,6 +316,63 @@ function CTMRGEnv(
         _to_space.(chis_east),
         _to_space.(chis_south),
         _to_space.(chis_west),
+        N,
+    )
+end
+
+function CTMRGEnv(
+    partfunc::InfinitePartitionFunction,
+    chis_north::A,
+    chis_east::A=chis_north,
+    chis_south::A=chis_north,
+    chis_west::A=chis_north,
+    N::Int
+) where {A<:AbstractMatrix{<:Union{Int,ElementarySpace}}}
+    Ds_north = map(partfunc.A) do t
+        return adjoint(space(t, 1))
+    end
+    Ds_east = map(partfunc.A) do t
+        return adjoint(space(t, 2))
+    end
+    return CTMRGEnv(
+        randn,
+        ComplexF64,
+        Ds_north,
+        Ds_east,
+        _to_space.(chis_north),
+        _to_space.(chis_east),
+        _to_space.(chis_south),
+        _to_space.(chis_west),
+        N,
+    )
+end
+
+function CTMRGEnv(
+    f,
+    T,
+    partfunc::InfinitePartitionFunction,
+    chis_north::A,
+    chis_east::A=chis_north,
+    chis_south::A=chis_north,
+    chis_west::A=chis_north,
+    N::Int
+) where {A<:AbstractMatrix{<:Union{Int,ElementarySpace}}}
+    Ds_north = map(partfunc.A) do t
+        return adjoint(space(t, 1))
+    end
+    Ds_east = map(partfunc.A) do t
+        return adjoint(space(t, 2))
+    end
+    return CTMRGEnv(
+        f,
+        T,
+        Ds_north,
+        Ds_east,
+        _to_space.(chis_north),
+        _to_space.(chis_east),
+        _to_space.(chis_south),
+        _to_space.(chis_west),
+        N,
     )
 end
 
@@ -339,6 +403,7 @@ function CTMRGEnv(
         fill(chi_west, size(peps)),
     )
 end
+
 function CTMRGEnv(
     f,
     T,
@@ -358,7 +423,47 @@ function CTMRGEnv(
         fill(chi_west, size(peps)),
     )
 end
+
 @non_differentiable CTMRGEnv(peps::InfinitePEPS, args...)
+
+function CTMRGEnv(
+    partfunc::InfinitePartitionFunction,
+    chi_north::S,
+    chi_east::S=chi_north,
+    chi_south::S=chi_north,
+    chi_west::S=chi_north,
+) where {S<:Union{Int,ElementarySpace}}
+    return CTMRGEnv(
+        partfunc,
+        fill(chi_north, size(peps)),
+        fill(chi_east, size(peps)),
+        fill(chi_south, size(peps)),
+        fill(chi_west, size(peps)),
+    )
+end
+
+function CTMRGEnv(
+    f,
+    T,
+    partfunc::InfinitePartitionFunction,
+    chi_north::S,
+    chi_east::S=chi_north,
+    chi_south::S=chi_north,
+    chi_west::S=chi_north,
+) where {S<:Union{Int,ElementarySpace}}
+    return CTMRGEnv(
+        f,
+        T,
+        partfunc,
+        fill(chi_north, size(peps)),
+        fill(chi_east, size(peps)),
+        fill(chi_south, size(peps)),
+        fill(chi_west, size(peps)),
+    )
+end
+
+@non_differentiable CTMRGEnv(peps::InfinitePartitionFunction, args...)
+
 
 # Custom adjoint for CTMRGEnv constructor, needed for fixed-point differentiation
 function ChainRulesCore.rrule(::Type{CTMRGEnv}, corners, edges)
