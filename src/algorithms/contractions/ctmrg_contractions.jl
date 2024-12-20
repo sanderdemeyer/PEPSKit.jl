@@ -658,8 +658,8 @@ function renormalize_south_edge(
 )
     return @autoopt @tensor edge[χ_E D_Nab D_Nbe; χ_W] :=
         E_south[χ1 D1 D2; χ2] *
-        bra[d; D_Nab D5 D1 D3] *
-        conj(ket[d; D_Nbe D6 D2 D4]) *
+        ket[d; D_Nab D5 D1 D3] *
+        conj(bra[d; D_Nbe D6 D2 D4]) *
         P_left[χ2 D3 D4; χ_W] *
         P_right[χ_E; χ1 D5 D6]
 end
