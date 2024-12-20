@@ -21,7 +21,7 @@ in the unit cell as:
 - `corners::Array{C,3}`: Array of corner tensors.
 - `edges::Array{T,3}`: Array of edge tensors.
 """
-struct CTMRGEnv{C,T}
+struct CTMRGEnv{C,T,N}
     corners::Array{C,3}
     edges::Array{T,3}
 end
@@ -54,6 +54,33 @@ function _edge_tensor(
     )
 end
 
+function _edge_tensor(
+    f,
+    ::Type{T},
+    left_vspace::S,
+    pspace::S,
+    right_vspace::S=left_vspace,
+    N,
+) where {T,S<:Union{Int,ElementarySpace}}
+    if N == 2
+
+        return TensorMap(
+            f,
+            T,
+            _to_space(left_vspace) ⊗ _to_space(pspace) ← _to_space(right_vspace),
+        )
+    elseif N == 3
+        return TensorMap(
+            f,
+            T,
+            _to_space(left_vspace) ⊗ _to_space(pspace) ⊗ dual(_to_space(pspace)) ←
+            _to_space(right_vspace),
+        )
+    else
+        error("TBA")
+    end
+end
+
 """
     CTMRGEnv(
         [f=randn, ComplexF64], Ds_north, Ds_east::A, chis_north::A, [chis_east::A], [chis_south::A], [chis_west::A]
@@ -78,9 +105,10 @@ function CTMRGEnv(
     chis_east::A=chis_north,
     chis_south::A=chis_north,
     chis_west::A=chis_north,
+    N::Int
 ) where {A<:AbstractMatrix{<:Union{Int,ElementarySpace}}}
     return CTMRGEnv(
-        randn, ComplexF64, Ds_north, Ds_east, chis_north, chis_east, chis_south, chis_west
+        randn, ComplexF64, Ds_north, Ds_east, chis_north, chis_east, chis_south, chis_west, N
     )
 end
 function CTMRGEnv(
@@ -92,6 +120,7 @@ function CTMRGEnv(
     chis_east::A=chis_north,
     chis_south::A=chis_north,
     chis_west::A=chis_north,
+    N::Int
 ) where {A<:AbstractMatrix{<:Union{Int,ElementarySpace}}}
     Ds_south = adjoint.(circshift(Ds_north, (-1, 0)))
     Ds_west = adjoint.(circshift(Ds_east, (0, 1)))
@@ -99,7 +128,7 @@ function CTMRGEnv(
     # do the whole thing
     st = _spacetype(first(Ds_north))
     C_type = tensormaptype(st, 1, 1, T)
-    T_type = tensormaptype(st, 3, 1, T)
+    T_type = tensormaptype(st, N, 1, T)
 
     # First index is direction
     corners = Array{C_type}(undef, 4, size(Ds_north)...)
@@ -112,32 +141,32 @@ function CTMRGEnv(
             T,
             chis_north[r, _prev(c, end)],
             Ds_north[_next(r, end), c],
-            Ds_north[_next(r, end), c],
             chis_north[r, c],
+            N,
         )
         edges[EAST, r, c] = _edge_tensor(
             f,
             T,
             chis_east[r, c],
             Ds_east[r, _prev(c, end)],
-            Ds_east[r, _prev(c, end)],
             chis_east[_next(r, end), c],
+            N,
         )
         edges[SOUTH, r, c] = _edge_tensor(
             f,
             T,
             chis_south[r, c],
             Ds_south[_prev(r, end), c],
-            Ds_south[_prev(r, end), c],
             chis_south[r, _prev(c, end)],
+            N,
         )
         edges[WEST, r, c] = _edge_tensor(
             f,
             T,
             chis_west[_next(r, end), c],
             Ds_west[r, _next(c, end)],
-            Ds_west[r, _next(c, end)],
             chis_west[r, c],
+            N,
         )
 
         corners[NORTHWEST, r, c] = _corner_tensor(
@@ -255,6 +284,7 @@ function CTMRGEnv(
         _to_space.(chis_west),
     )
 end
+
 function CTMRGEnv(
     f,
     T,
