@@ -185,8 +185,6 @@ function CTMRGEnv(
 
     corners[:, :, :] ./= norm.(corners[:, :, :])
     edges[:, :, :] ./= norm.(edges[:, :, :])
-    println("here, the corners are $(typeof(corners)), $(summary(corners[1,1,1]))")
-    println("here, the edges are $(typeof(edges)), $(summary(edges[1,1,1]))")
     return CTMRGEnv(corners, edges, N)
 end
 
