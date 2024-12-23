@@ -338,6 +338,33 @@ function build_projectors(
     return P_left, P_right
 end
 
+function build_projectors(
+    U::AbstractTensorMap{E,2,1},
+    S::AbstractTensorMap{E,1,1},
+    V::AbstractTensorMap{E,1,2},
+    Q::AbstractTensorMap{E,2,2},
+    Q_next::AbstractTensorMap{E,2,2},
+) where {E<:ElementarySpace}
+    isqS = sdiag_pow(S, -0.5)
+    P_left = Q_next * V' * isqS
+    P_right = isqS * U' * Q
+    return P_left, P_right
+end
+function build_projectors(
+    U::AbstractTensorMap{E,2,1},
+    S::AbstractTensorMap{E,1,1},
+    V::AbstractTensorMap{E,1,2},
+    Q::EnlargedPartitionFunctionCorner,
+    Q_next::EnlargedPartitionFunctionCorner,
+) where {E<:ElementarySpace}
+    isqS = sdiag_pow(S, -0.5)
+    P_left = left_projector(Q.E_1, Q.C, Q.E_2, V, isqS, Q.partfunc)
+    P_right = right_projector(
+        Q_next.E_1, Q_next.C, Q_next.E_2, U, isqS, Q_next.partfunc
+    )
+    return P_left, P_right
+end
+
 # ======================================================================================== #
 # Renormalization step
 # ======================================================================================== #
@@ -397,5 +424,5 @@ function ctmrg_renormalize(enlarged_envs, projectors, state, envs, ::Simultaneou
         return corner / norm(corner), edge / norm(edge)
     end
 
-    return CTMRGEnv(map(first, corners_edges), map(last, corners_edges))
+    return CTMRGEnv(map(first, corners_edges), map(last, corners_edges), envs.N)
 end

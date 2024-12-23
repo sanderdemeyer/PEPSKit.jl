@@ -21,9 +21,10 @@ in the unit cell as:
 - `corners::Array{C,3}`: Array of corner tensors.
 - `edges::Array{T,3}`: Array of edge tensors.
 """
-struct CTMRGEnv{C,T,N}
+struct CTMRGEnv{C,T}
     corners::Array{C,3}
     edges::Array{T,3}
+    N::Int
 end
 
 _spacetype(::Int) = ComplexSpace
@@ -57,10 +58,10 @@ end
 function _edge_tensor(
     f,
     ::Type{T},
+    N,
     left_vspace::S,
     pspace::S,
     right_vspace::S=left_vspace,
-    N,
 ) where {T,S<:Union{Int,ElementarySpace}}
     if N == 2
 
@@ -70,12 +71,13 @@ function _edge_tensor(
             _to_space(left_vspace) ⊗ _to_space(pspace) ← _to_space(right_vspace),
         )
     elseif N == 3
-        return TensorMap(
-            f,
-            T,
-            _to_space(left_vspace) ⊗ _to_space(pspace) ⊗ dual(_to_space(pspace)) ←
-            _to_space(right_vspace),
-        )
+        return _edge_tensor(f, T, left_vspace, pspace, pspace, right_vspace)
+        # return TensorMap(
+        #     f,
+        #     T,
+        #     _to_space(left_vspace) ⊗ _to_space(pspace) ⊗ dual(_to_space(pspace)) ←
+        #     _to_space(right_vspace),
+        # )
     else
         error("TBA")
     end
@@ -99,28 +101,28 @@ of the corresponding edge tensor for each direction. Specifically, for a given s
 `chis_west[r, c]` corresponds to the north space of the west edge tensor.
 """
 function CTMRGEnv(
+    N::Int,
     Ds_north::A,
     Ds_east::A,
     chis_north::A,
     chis_east::A=chis_north,
     chis_south::A=chis_north,
     chis_west::A=chis_north,
-    N::Int
 ) where {A<:AbstractMatrix{<:Union{Int,ElementarySpace}}}
     return CTMRGEnv(
-        randn, ComplexF64, Ds_north, Ds_east, chis_north, chis_east, chis_south, chis_west, N
+        randn, ComplexF64, N, Ds_north, Ds_east, chis_north, chis_east, chis_south, chis_west
     )
 end
 function CTMRGEnv(
     f,
     T,
+    N::Int,
     Ds_north::A,
     Ds_east::A,
     chis_north::A,
     chis_east::A=chis_north,
     chis_south::A=chis_north,
-    chis_west::A=chis_north,
-    N::Int
+    chis_west::A=chis_north
 ) where {A<:AbstractMatrix{<:Union{Int,ElementarySpace}}}
     Ds_south = adjoint.(circshift(Ds_north, (-1, 0)))
     Ds_west = adjoint.(circshift(Ds_east, (0, 1)))
@@ -139,34 +141,34 @@ function CTMRGEnv(
         edges[NORTH, r, c] = _edge_tensor(
             f,
             T,
+            N,
             chis_north[r, _prev(c, end)],
             Ds_north[_next(r, end), c],
             chis_north[r, c],
-            N,
         )
         edges[EAST, r, c] = _edge_tensor(
             f,
             T,
+            N,
             chis_east[r, c],
             Ds_east[r, _prev(c, end)],
             chis_east[_next(r, end), c],
-            N,
         )
         edges[SOUTH, r, c] = _edge_tensor(
             f,
             T,
+            N,
             chis_south[r, c],
             Ds_south[_prev(r, end), c],
             chis_south[r, _prev(c, end)],
-            N,
         )
         edges[WEST, r, c] = _edge_tensor(
             f,
             T,
+            N,
             chis_west[_next(r, end), c],
             Ds_west[r, _next(c, end)],
             chis_west[r, c],
-            N,
         )
 
         corners[NORTHWEST, r, c] = _corner_tensor(
@@ -183,8 +185,9 @@ function CTMRGEnv(
 
     corners[:, :, :] ./= norm.(corners[:, :, :])
     edges[:, :, :] ./= norm.(edges[:, :, :])
-
-    return CTMRGEnv(corners, edges)
+    println("here, the corners are $(typeof(corners)), $(summary(corners[1,1,1]))")
+    println("here, the edges are $(typeof(edges)), $(summary(edges[1,1,1]))")
+    return CTMRGEnv(corners, edges, N)
 end
 
 """
@@ -201,30 +204,31 @@ The environment virtual spaces for each site correspond to virtual space of the
 corresponding edge tensor for each direction.
 """
 function CTMRGEnv(
+    N::Int,
     D_north::S,
     D_east::S,
     chi_north::S,
     chi_east::S=chi_north,
     chi_south::S=chi_north,
     chi_west::S=chi_north;
-    unitcell::Tuple{Int,Int}=(1, 1),
-    N = 3
+    unitcell::Tuple{Int,Int}=(1, 1)
 ) where {S<:Union{Int,ElementarySpace}}
     return CTMRGEnv(
         randn,
         ComplexF64,
+        N,
         fill(D_north, unitcell),
         fill(D_east, unitcell),
         fill(chi_north, unitcell),
         fill(chi_east, unitcell),
         fill(chi_south, unitcell),
         fill(chi_west, unitcell),
-        N,
     )
 end
 function CTMRGEnv(
     f,
     T,
+    N::Int,
     D_north::S,
     D_east::S,
     chi_north::S,
@@ -232,18 +236,17 @@ function CTMRGEnv(
     chi_south::S=chi_north,
     chi_west::S=chi_north;
     unitcell::Tuple{Int,Int}=(1, 1),
-    N = 3
 ) where {S<:Union{Int,ElementarySpace}}
     return CTMRGEnv(
         f,
         T,
+        N,
         fill(D_north, unitcell),
         fill(D_east, unitcell),
         fill(chi_north, unitcell),
         fill(chi_east, unitcell),
         fill(chi_south, unitcell),
-        fill(chi_west, unitcell),
-        N,
+        fill(chi_west, unitcell)
     )
 end
 
@@ -266,11 +269,11 @@ of the corresponding edge tensor for each direction. Specifically, for a given s
 """
 function CTMRGEnv(
     peps::InfinitePEPS,
+    N::Int,
     chis_north::A,
     chis_east::A=chis_north,
     chis_south::A=chis_north,
     chis_west::A=chis_north,
-    N::Int
 ) where {A<:AbstractMatrix{<:Union{Int,ElementarySpace}}}
     Ds_north = map(peps.A) do t
         return adjoint(space(t, 2))
@@ -281,25 +284,25 @@ function CTMRGEnv(
     return CTMRGEnv(
         randn,
         ComplexF64,
+        N,
         Ds_north,
         Ds_east,
         _to_space.(chis_north),
         _to_space.(chis_east),
         _to_space.(chis_south),
         _to_space.(chis_west),
-        N,
     )
 end
 
 function CTMRGEnv(
     f,
     T,
+    N::Int,
     peps::InfinitePEPS,
     chis_north::A,
     chis_east::A=chis_north,
     chis_south::A=chis_north,
-    chis_west::A=chis_north,
-    N::Int
+    chis_west::A=chis_north
 ) where {A<:AbstractMatrix{<:Union{Int,ElementarySpace}}}
     Ds_north = map(peps.A) do t
         return adjoint(space(t, 2))
@@ -310,23 +313,23 @@ function CTMRGEnv(
     return CTMRGEnv(
         f,
         T,
+        N,
         Ds_north,
         Ds_east,
         _to_space.(chis_north),
         _to_space.(chis_east),
         _to_space.(chis_south),
         _to_space.(chis_west),
-        N,
     )
 end
 
 function CTMRGEnv(
     partfunc::InfinitePartitionFunction,
+    N::Int,
     chis_north::A,
     chis_east::A=chis_north,
     chis_south::A=chis_north,
     chis_west::A=chis_north,
-    N::Int
 ) where {A<:AbstractMatrix{<:Union{Int,ElementarySpace}}}
     Ds_north = map(partfunc.A) do t
         return adjoint(space(t, 1))
@@ -337,25 +340,25 @@ function CTMRGEnv(
     return CTMRGEnv(
         randn,
         ComplexF64,
+        N,
         Ds_north,
         Ds_east,
         _to_space.(chis_north),
         _to_space.(chis_east),
         _to_space.(chis_south),
         _to_space.(chis_west),
-        N,
     )
 end
 
 function CTMRGEnv(
     f,
     T,
+    N::Int,
     partfunc::InfinitePartitionFunction,
     chis_north::A,
     chis_east::A=chis_north,
     chis_south::A=chis_north,
-    chis_west::A=chis_north,
-    N::Int
+    chis_west::A=chis_north
 ) where {A<:AbstractMatrix{<:Union{Int,ElementarySpace}}}
     Ds_north = map(partfunc.A) do t
         return adjoint(space(t, 1))
@@ -366,13 +369,13 @@ function CTMRGEnv(
     return CTMRGEnv(
         f,
         T,
+        N,
         Ds_north,
         Ds_east,
         _to_space.(chis_north),
         _to_space.(chis_east),
         _to_space.(chis_south),
         _to_space.(chis_west),
-        N,
     )
 end
 
@@ -397,6 +400,7 @@ function CTMRGEnv(
 ) where {S<:Union{Int,ElementarySpace}}
     return CTMRGEnv(
         peps,
+        3,
         fill(chi_north, size(peps)),
         fill(chi_east, size(peps)),
         fill(chi_south, size(peps)),
@@ -416,6 +420,7 @@ function CTMRGEnv(
     return CTMRGEnv(
         f,
         T,
+        3,
         peps,
         fill(chi_north, size(peps)),
         fill(chi_east, size(peps)),
@@ -435,10 +440,11 @@ function CTMRGEnv(
 ) where {S<:Union{Int,ElementarySpace}}
     return CTMRGEnv(
         partfunc,
-        fill(chi_north, size(peps)),
-        fill(chi_east, size(peps)),
-        fill(chi_south, size(peps)),
-        fill(chi_west, size(peps)),
+        2,
+        fill(chi_north, size(partfunc)),
+        fill(chi_east, size(partfunc)),
+        fill(chi_south, size(partfunc)),
+        fill(chi_west, size(partfunc)),
     )
 end
 
@@ -454,11 +460,12 @@ function CTMRGEnv(
     return CTMRGEnv(
         f,
         T,
+        2,
         partfunc,
-        fill(chi_north, size(peps)),
-        fill(chi_east, size(peps)),
-        fill(chi_south, size(peps)),
-        fill(chi_west, size(peps)),
+        fill(chi_north, size(partfunc)),
+        fill(chi_east, size(partfunc)),
+        fill(chi_south, size(partfunc)),
+        fill(chi_west, size(partfunc)),
     )
 end
 

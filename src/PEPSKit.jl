@@ -23,6 +23,7 @@ include("utility/hook_pullback.jl")
 include("utility/autoopt.jl")
 
 include("states/abstractpeps.jl")
+include("states/infinitepartitionfunction.jl")
 include("states/infinitepeps.jl")
 include("states/infiniteweightpeps.jl")
 
@@ -177,6 +178,7 @@ export absorb_weight
 export su_iter, simpleupdate, SimpleUpdate
 export fu_iter, fullupdate, FullUpdate
 
+export InfinitePartitionFunction
 export InfinitePEPS, InfiniteTransferPEPS
 export SUWeight, InfiniteWeightPEPS
 export SUWeight, InfiniteWeightPEPS

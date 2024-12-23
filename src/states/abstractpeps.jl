@@ -6,6 +6,7 @@ conventionally ordered as: ``T : P ← N ⊗ E ⊗ S ⊗ W``. Here, ``P``, ``N``
 ``W`` denote the physics, north, east, south and west spaces, respectively.
 """
 const PEPSTensor{S} = AbstractTensorMap{S,1,4} where {S<:ElementarySpace}
+const PartitionFunction{S} = AbstractTensorMap{S,2,2} where {S<:ElementarySpace}
 
 """
     PEPSTensor(f, ::Type{T}, Pspace::S, Nspace::S,
@@ -47,6 +48,13 @@ Default type for PEPO tensors with a single incoming and outgoing physical index
 virtual indices, conventionally ordered as: O : P ⊗ P' ← N ⊗ E ⊗ S ⊗ W.
 """
 const PEPOTensor{S} = AbstractTensorMap{S,2,4} where {S<:ElementarySpace}
+
+"""
+    abstract type AbstractPartitionFunction end
+
+Abstract supertype for a 2D projected entangled-pair state.
+"""
+abstract type AbstractPartitionFunction end
 
 """
     abstract type AbstractPEPS end

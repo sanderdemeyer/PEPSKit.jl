@@ -1,15 +1,24 @@
 using PEPSKit
 using TensorKit
+using KrylovKit
 using JLD2
 
-file = jldopen("Ising_PEPO_p_2.jld2", "r")
+
+file = jldopen("examples/Ising_PEPO_p_2.jld2", "r")
 O = file["O"]
 close(file)
 
-@tensor Z[-1 -2; -3 -4] = O[1 1; -1 -2 -3 -4]
+@tensor Z[-3 -4; -1 -2] := O[1 1; -1 -2 -3 -4]
 
-χenv = 16
-env0 = CTMRGEnv(Z, ComplexSpace(χenv));
+pspace = ℂ^2
+T = TensorMap(randn, pspace, pspace ⊗ pspace ⊗ pspace' ⊗ pspace')
+test = InfinitePEPS(T)
+
+psi = InfinitePartitionFunction(Z)
+
+χenv = 6
+envtest = CTMRGEnv(test, ComplexSpace(χenv));
+env0 = CTMRGEnv(psi, ComplexSpace(χenv));
 
 ctm_alg = CTMRG(;
     tol=1e-10,
@@ -20,4 +29,4 @@ ctm_alg = CTMRG(;
     ctmrgscheme=:simultaneous,
 )
 
-env_init = leading_boundary(env0, psi_init, ctm_alg);
+env_init = leading_boundary(env0, psi, ctm_alg);
