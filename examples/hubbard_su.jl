@@ -11,6 +11,9 @@ Random.seed!(10)
 if symm == Trivial
     Pspace = Vect[fℤ₂](0 => 2, 1 => 2)
     Vspace = Vect[fℤ₂](0 => Dcut / 2, 1 => Dcut / 2)
+elseif symm == U1Irrep
+    Pspace = Vect[fℤ₂ ⊠ U1Irrep]((0,0) => 2, (1,1//2) => 1, (1,-1//2) => 1)
+    Vspace = Vect[fℤ₂ ⊠ U1Irrep]((0,0) => 2, (1,1//2) => 1, (1,-1//2) => 1, (0, -1) => 1, (0, 1) => 1)
 else
     error("Not implemented")
 end
@@ -27,7 +30,7 @@ ham = hubbard_model(Float64, Trivial, Trivial, InfiniteSquare(N1, N2); t=t, U=U,
 # simple update
 dts = [1e-2, 1e-3, 4e-4, 1e-4]
 tols = [1e-6, 1e-8, 1e-8, 1e-8]
-maxiter = 10000
+maxiter = 10
 for (n, (dt, tol)) in enumerate(zip(dts, tols))
     trscheme = truncerr(1e-10) & truncdim(Dcut)
     alg = SimpleUpdate(dt, tol, maxiter, trscheme)
@@ -38,7 +41,7 @@ end
 # absort weight into site tensors
 peps = InfinitePEPS(peps)
 # CTMRG
-χenv0, χenv = 6, 20
+χenv0, χenv = 2, 4
 Espace = Vect[fℤ₂](0 => χenv0 / 2, 1 => χenv0 / 2)
 envs = CTMRGEnv(randn, Float64, peps, Espace)
 for χ in [χenv0, χenv]
