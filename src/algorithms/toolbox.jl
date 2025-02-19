@@ -121,7 +121,7 @@ function _contract_site(
     E_east::CTMRG_PF_EdgeTensor,
     E_south::CTMRG_PF_EdgeTensor,
     E_west::CTMRG_PF_EdgeTensor,
-    O::PFTensor,
+    O::PFSandwich,
 )
     return @autoopt @tensor E_west[χ_WSW D_W; χ_WNW] *
         C_northwest[χ_WNW; χ_NNW] *
@@ -131,7 +131,7 @@ function _contract_site(
         C_southeast[χ_ESE; χ_SSE] *
         E_south[χ_SSE D_S; χ_SSW] *
         C_southwest[χ_SSW; χ_WSW] *
-        O[D_W D_S; D_N D_E]
+        tensor(O)[D_W D_S; D_N D_E]
 end
 
 """

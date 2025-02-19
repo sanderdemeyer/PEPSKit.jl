@@ -143,7 +143,7 @@ physicalspace(n::InfinitePEPS, r::Int, c::Int) = physicalspace(n[r, c])
 function InfiniteSquareNetwork(top::InfinitePEPS, bot::InfinitePEPS=top)
     size(top) == size(bot) ||
         throw(ArgumentError("Top PEPS, bottom PEPS and PEPO rows should have length"))
-    return InfiniteSquareNetwork(map(Tuple, zip(unitcell(top), unitcell(bot))))
+    return InfiniteSquareNetwork(map(tuple, unitcell(top), unitcell(bot)))
 end
 
 ## Vector interface
