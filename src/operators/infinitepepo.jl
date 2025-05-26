@@ -249,6 +249,20 @@ function ChainRulesCore.rrule(
     return network, InfiniteSquareNetwork_pullback
 end
 
+function ChainRulesCore.rrule(
+    ::Type{InfiniteSquareNetwork},
+    O::InfinitePEPO{P},
+) where {P<:PEPOTensor}
+    network = InfiniteSquareNetwork(O)
+
+    function InfiniteSquareNetwork_pullback(Δnetwork_)
+        Δnetwork = unthunk(Δnetwork_)
+        ΔO = InfinitePEPO(_stack_tuples(map(pepo, unitcell(Δnetwork))))
+        return NoTangent(), ΔO
+    end
+    return network, InfiniteSquareNetwork_pullback
+end
+
 function _stack_tuples(A::Matrix{NTuple{N,T}}) where {N,T}
     out = Array{T}(undef, size(A)..., N)
     for (r, c) in Iterators.product(axes(A)...)
