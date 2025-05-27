@@ -215,10 +215,10 @@ function MPSKit.expectation_value(O::InfinitePEPO, H::InfinitePEPO, envspace, ct
     env0_OH = CTMRGEnv(network_OH, envspace)
     env_OH, = leading_boundary(env0_OH, network_OH, ctm_alg)
 
-    network_OO = InfiniteSquareNetwork(_stack_pepos((PEPSKit.unitcell(O), PEPSKit.unitcell(O))))
-    env0_OO = CTMRGEnv(network_OO, envspace)
-    env_OO, = leading_boundary(env0_OO, network_OO, ctm_alg)
-    return network_value(network_OH, env_OH) / network_value(network_OO, env_OO)
+    network_O = InfiniteSquareNetwork(O)
+    env0_O = CTMRGEnv(network_O, envspace)
+    env_O, = leading_boundary(env0_O, network_O, ctm_alg)
+    return network_value(network_OH, env_OH) / network_value(network_O, env_O)
 end
 
 function _expectation_value(O::InfinitePEPO, gate::Pair{NTuple{1, CartesianIndex{2}}, T}, envspace, ctm_alg) where {T<:AbstractTensorMap}
