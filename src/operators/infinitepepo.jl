@@ -202,6 +202,55 @@ function Base.adjoint(O::InfinitePEPO)
     return InfinitePEPO(_dag.(unitcell(O)))
 end
 
+function trace_out(O::InfinitePEPO)
+    function _trace_out(O::PEPOTensor)
+        @tensor O_tr[-4 -3; -1 -2] := O[1 1; -1 -2 -3 -4]
+        return O_tr
+    end
+    return InfinitePartitionFunction(_trace_out.(unitcell(O))[:,:,1])
+end
+
+function MPSKit.expectation_value(O::InfinitePEPO, H::InfinitePEPO, χ, ctm_alg)
+    network_OH = InfiniteSquareNetwork(_stack_pepos((PEPSKit.unitcell(O), PEPSKit.unitcell(H))))
+    env0_OH = CTMRGEnv(network_OH, χ)
+    env_OH, = leading_boundary(env0_OH, network_OH, ctm_alg)
+
+    network_OO = InfiniteSquareNetwork(_stack_pepos((PEPSKit.unitcell(O), PEPSKit.unitcell(O))))
+    env0_OO = CTMRGEnv(network_OO, χ)
+    env_OO, = leading_boundary(env0_OO, network_OO, ctm_alg)
+    return network_value(network_OH, env_OH) / network_value(network_OO, env_OO)
+end
+
+function _expectation_value(O::InfinitePEPO, gate::Pair{NTuple{1, CartesianIndex{2}}, T}, χ, ctm_alg) where {T<:AbstractTensorMap}
+    (Nr, Nc) = size(O)
+    site = (mod1(gate[1][1][1], Nr), mod1(gate[1][1][2], Nc), 1)
+
+    @tensor t[-4 -3; -1 -2] := O[site...][1 2; -1 -2 -3 -4] * gate[2][2; 1]
+    network = trace_out(O)
+    env0 = CTMRGEnv(network, χ)
+    env, = leading_boundary(env0, network, ctm_alg)
+    return expectation_value(network, ([gate[1][1] => t],), env)
+end
+
+function _expectation_value(O::InfinitePEPO, gate::Pair{NTuple{2, CartesianIndex{2}}, T}, χ, ctm_alg) where {T<:AbstractTensorMap}
+    (Nr, Nc) = size(O)
+    left = (mod1(gate[1][1][1], Nr), mod1(gate[1][1][2], Nc), 1)
+    right = (mod1(gate[1][2][1], Nr), mod1(gate[1][2][2], Nc), 1)
+    @tensor t[-1 -2 -3 -4; -5 -6 -7 -8] := O[left...][1 2; -1 -2 -3 -4] * O[right...][3 4; -5 -6 -7 -8] * gate[2][2 4; 1 3]
+    U, S, V = tsvd(t)
+    L = permute(U * sqrt(S), ((4,3),(1,2,5)))
+    R = permute(sqrt(S) * V, ((1,5,4),(2,3)))
+
+    network = trace_out(O)
+    env0 = CTMRGEnv(network, χ)
+    env, = leading_boundary(env0, network, ctm_alg)
+    return expectation_value(network, ([gate[1][1] => L, gate[1][2] => R],), env)
+end
+
+function MPSKit.expectation_value(O::InfinitePEPO, H::LocalOperator, χ, ctm_alg)
+    return sum([_expectation_value(O, t, χ, ctm_alg) for t = H.terms])
+end
+
 ## Vector interface
 
 function VectorInterface.scalartype(::Type{NT}) where {NT<:InfinitePEPO}
@@ -269,4 +318,15 @@ function _stack_tuples(A::Matrix{NTuple{N,T}}) where {N,T}
         out[r, c, :] .= A[r, c]
     end
     return out
+end
+
+function _stack_pepos(A::NTuple{N,Array{T}}) where {N,T}
+    size_out = size(A[1])
+    out = Array{T}(undef, size_out[1], size_out[2], N)
+    for h = 1:N
+        for (r, c) in Iterators.product(axes(A[1])...)
+            out[r, c, h] = A[h][r, c]
+        end    
+    end
+    return InfinitePEPO(out)
 end

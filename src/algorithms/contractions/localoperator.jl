@@ -126,6 +126,42 @@ function _contract_edge_expr(rowrange, colrange)
     return edges_N, edges_E, edges_S, edges_W
 end
 
+function _contract_pf_edge_expr(rowrange, colrange)
+    rmin, rmax = extrema(rowrange)
+    cmin, cmax = extrema(colrange)
+    gridsize = (rmax - rmin + 1, cmax - cmin + 1)
+
+    edges_N = map(1:gridsize[2]) do i
+        E_N = :(env.edges[NORTH, mod1($(rmin - 1), end), mod1($(cmin + i - 1), end)])
+        return tensorexpr(
+            E_N, (envlabel(NORTH, i - 1), virtuallabel(NORTH, i)), envlabel(NORTH, i)
+        )
+    end
+
+    edges_E = map(1:gridsize[1]) do i
+        E_E = :(env.edges[EAST, mod1($(rmin + i - 1), end), mod1($(cmax + 1), end)])
+        return tensorexpr(
+            E_E, (envlabel(EAST, i - 1), virtuallabel(EAST, i)), envlabel(EAST, i)
+        )
+    end
+
+    edges_S = map(1:gridsize[2]) do i
+        E_S = :(env.edges[SOUTH, mod1($(rmax + 1), end), mod1($(cmin + i - 1), end)])
+        return tensorexpr(
+            E_S, (envlabel(SOUTH, i), virtuallabel(SOUTH, i)), envlabel(SOUTH, i - 1)
+        )
+    end
+
+    edges_W = map(1:gridsize[1]) do i
+        E_W = :(env.edges[WEST, mod1($(rmin + i - 1), end), mod1($(cmin - 1), end)])
+        return tensorexpr(
+            E_W, (envlabel(WEST, i), virtuallabel(WEST, i)), envlabel(WEST, i - 1)
+        )
+    end
+
+    return edges_N, edges_E, edges_S, edges_W
+end
+
 function _contract_state_expr(rowrange, colrange, cartesian_inds=nothing)
     rmin, rmax = extrema(rowrange)
     cmin, cmax = extrema(colrange)
@@ -168,6 +204,96 @@ function _contract_state_expr(rowrange, colrange, cartesian_inds=nothing)
                         virtuallabel(:horizontal, side, i, j - 1)
                     end,
                 ),
+            )
+        end
+    end
+end
+
+function pf_tensor_expr(tensor_label, label_west, label_south, label_north, label_east, (len,place))
+    if len == 1
+        a = tensorexpr(
+            tensor_label,
+            ((label_west),(label_south),),
+            ((label_north),(label_east),),
+        )
+    else
+        if place == 1
+            a = tensorexpr(
+                tensor_label,
+                ((label_west), (label_south),),
+                ((label_north), (label_east), (virtuallabel(:op, len, place)),),
+            )
+        elseif place == len
+            a = tensorexpr(
+                tensor_label,
+                ((virtuallabel(:op, len, place - 1)), (label_west), (label_south),),
+                ((label_north), (label_east),),
+            )
+        else
+            a = tensorexpr(
+                tensor_label,
+                ((virtuallabel(:op, len, place - 1)), (label_west), (label_south),),
+                ((label_north), (label_east), (virtuallabel(:op, len, place)),),
+            )
+        end
+    end
+    return a
+end
+
+function _contract_tensor_expr(O, pos, rowrange, colrange, cartesian_inds=nothing)
+    rmin, rmax = extrema(rowrange)
+    cmin, cmax = extrema(colrange)
+    gridsize = (rmax - rmin + 1, cmax - cmin + 1)
+    return map(Iterators.product(1:gridsize[1], 1:gridsize[2])) do (i, j)
+        inds_id = if isnothing(cartesian_inds)
+            nothing
+        else
+            findfirst(==(CartesianIndex(rmin + i - 1, cmin + j - 1)), cartesian_inds)
+        end
+        tensor_label = if isnothing(inds_id) || O <: Nothing
+            :(pf[mod1($(rmin + i - 1), end), mod1($(cmin + j - 1), end)])
+        else
+            :(O[$inds_id])
+        end
+
+        label_west = if j == 1
+            virtuallabel(WEST, i)
+        else
+            virtuallabel(:horizontal, i, j - 1)
+        end
+        label_south = if i == gridsize[1]
+            virtuallabel(SOUTH, j)
+        else
+            virtuallabel(:vertical, i, j)
+        end
+        label_north = if i == 1
+            virtuallabel(NORTH, j)
+        else
+            virtuallabel(:vertical, i - 1, j)
+        end
+        label_east = if j == gridsize[2]
+            virtuallabel(EAST, i)
+        else
+            virtuallabel(:horizontal, i, j)
+        end
+        if isnothing(inds_id) || O <: Nothing
+            pf_tensor_expr(
+                tensor_label,
+                label_west,
+                label_south,
+                label_north,
+                label_east,
+                (1,1),
+            )
+
+        else
+            pf_tensor_expr(
+                tensor_label,
+                label_west,
+                label_south,
+                label_north,
+                label_east,
+                pos[inds_id],
             )
         end
     end
@@ -263,6 +389,73 @@ end
         edges_W...,
         ket...,
         map(x -> Expr(:call, :conj, x), bra)...,
+    )
+
+    returnex = quote
+        @autoopt @tensor opt = $multiplication_ex
+    end
+    return macroexpand(@__MODULE__, returnex)
+end
+
+# Partition function contractions
+
+"""
+    contract_local_tensors(inds, [O], pf, env)
+
+Contract a local tensor `O` inserted into a partition function `pf` at position `inds`,
+using the environment `env`.
+"""
+function contract_local_tensors(
+    inds::NTuple{N,CartesianIndex{2}},
+    O::Union{Nothing,NTuple{N,AbstractTensorMap{T,S}}},
+    pos::Union{Nothing,NTuple{N,Tuple{Int,Int}}},
+    pf::InfinitePartitionFunction,
+    env::CTMRGEnv{C,<:CTMRG_PF_EdgeTensor},
+) where {N,T,S,C}
+    static_inds = Val.(inds)
+    static_pos = Val.(pos)
+    return _contract_local_tensors(static_inds, O, static_pos, pf, env)
+end
+function contract_local_tensors(
+    inds::NTuple{N,Tuple{Int,Int}},
+    O::Union{Nothing,NTuple{N,AbstractTensorMap{T,S}}},
+    pos::Union{Nothing,NTuple{N,Tuple{Int,Int}}},
+    pf::InfinitePartitionFunction,
+    env::CTMRGEnv{C,<:CTMRG_PF_EdgeTensor},
+) where {N,T,S,C}
+    return contract_local_tensors(CartesianIndex.(inds), O, pos, pf, env)
+end
+@generated function _contract_local_tensors(
+    inds::NTuple{N,Val},
+    O::Union{Nothing,NTuple{N,AbstractTensorMap{T,S}}},
+    pos::Union{Nothing,NTuple{N,Val}},
+    pf::InfinitePartitionFunction,
+    env::CTMRGEnv{C,<:CTMRG_PF_EdgeTensor},
+) where {N,T,S,C}
+    # weird hack to extract information from Val
+    cartesian_inds = collect(CartesianIndex{2}, map(x -> x.parameters[1], inds.parameters)) 
+    cartesian_pos = collect(Tuple{Int,Int}, map(x -> x.parameters[1], pos.parameters)) # weird hack to extract information from Val
+    allunique(cartesian_inds) ||
+        throw(ArgumentError("Indices should not overlap: $cartesian_inds."))
+    rowrange = getindex.(cartesian_inds, 1)
+    colrange = getindex.(cartesian_inds, 2)
+
+    corner_NW, corner_NE, corner_SE, corner_SW = _contract_corner_expr(rowrange, colrange)
+    edges_N, edges_E, edges_S, edges_W = _contract_pf_edge_expr(rowrange, colrange)
+    tensors = _contract_tensor_expr(O, Tuple(cartesian_pos), rowrange, colrange, cartesian_inds)
+
+    multiplication_ex = Expr(
+        :call,
+        :*,
+        corner_NW,
+        corner_NE,
+        corner_SE,
+        corner_SW,
+        edges_N...,
+        edges_E...,
+        edges_S...,
+        edges_W...,
+        tensors...,
     )
 
     returnex = quote

@@ -25,16 +25,24 @@ convention.
 """
 function MPSKit.expectation_value(
     pf::InfinitePartitionFunction,
-    op::Pair{CartesianIndex{2},<:AbstractTensorMap{T,S,2,2}},
-    env::CTMRGEnv,
-) where {T,S}
-    return contract_local_tensor(op[1], op[2], env) /
-           contract_local_tensor(op[1], pf[op[1]], env)
-end
-function MPSKit.expectation_value(
-    pf::InfinitePartitionFunction, op::Pair{Tuple{Int,Int}}, env::CTMRGEnv
-)
-    return expectation_value(pf, CartesianIndex(op[1]) => op[2], env)
+    op::NTuple{N,Array{<:Pair{CartesianIndex{2},<:AbstractTensorMap{T,S}}}},
+    envs::CTMRGEnv,
+) where {N,T,S}
+    inds = CartesianIndex{2}[]
+    ops = AbstractTensorMap{T,S}[]
+    positions = Tuple{Int,Int}[]
+    for (n, term) = enumerate(op)
+        for (i,(ind, op)) in enumerate(term)
+            push!(inds, ind)
+            push!(ops, op)
+            push!(positions, (length(term), i))
+        end
+    end
+    # inds = first.(op)
+    # ops = last.(op)
+    pos = Tuple(positions)
+    return contract_local_tensors(Tuple(inds), Tuple(ops), pos, pf, envs) /
+           contract_local_tensors(Tuple(inds), nothing, pos, pf, envs)
 end
 
 """
