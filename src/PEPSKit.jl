@@ -63,6 +63,7 @@ include("algorithms/time_evolution/simpleupdate.jl")
 include("algorithms/time_evolution/simpleupdate3site.jl")
 
 include("algorithms/toolbox.jl")
+include("algorithms/correlators.jl")
 
 include("utility/symmetrization.jl")
 
@@ -99,5 +100,7 @@ export InfiniteSquare, vertices, nearest_neighbours, next_nearest_neighbours
 export transverse_field_ising,
     heisenberg_XYZ, heisenberg_XXZ, j1_j2_model, bose_hubbard_model
 export pwave_superconductor, hubbard_model, tj_model
+
+export correlator_horizontal
 
 end # module
