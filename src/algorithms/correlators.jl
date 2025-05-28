@@ -12,6 +12,7 @@ function correlator_horizontal(
     (r, c₁) = Tuple(inds[1])
     (r2, c₂) = Tuple(inds[2])
     @assert r == r2 "Not a horizontal correlation function."
+    @assert c₁ < c₂ "The first column index must be less than the second."
 
     @autoopt @tensor left_side[χS DEt Dstring DEb; χN] := env.corners[1,_prev(r, Nr), _prev(c₁, Nc)][χ3; χ4] * env.edges[1, _prev(r, Nr), mod1(c₁, Nc)][χ4 DNt DNb; χN] * 
     env.edges[4, mod1(r, Nr),  _prev(c₁, Nc)][χ2 DWt DWb; χ3] * ket[mod1(r, Nr), mod1(c₁, Nc)][dt; DNt DEt DSt DWt] * conj(bra[r,c₁][db; DNb DEb DSb DWb]) * O₁[db; dt Dstring] * 
@@ -56,7 +57,8 @@ function correlator_horizontal(
     (r, c₁) = Tuple(inds[1])
     (r2, c₂) = Tuple(inds[2])
     @assert r == r2 "Not a horizontal correlation function."
-    
+    @assert c₁ < c₂ "The first column index must be less than the second."
+
     @autoopt @tensor left_side[χS DEt DEb; χN] := env.corners[1,_prev(r, Nr), _prev(c₁, Nc)][χ3; χ4] * env.edges[1, _prev(r, Nr), mod1(c₁, Nc)][χ4 DNt DNb; χN] * 
     env.edges[4, mod1(r, Nr),  _prev(c₁, Nc)][χ2 DWt DWb; χ3] * ket[mod1(r, Nr), mod1(c₁, Nc)][dt; DNt DEt DSt DWt] * conj(bra[r,c₁][db; DNb DEb DSb DWb]) * O₁[db; dt] * 
     env.corners[4, _next(r, Nr), _prev(c₁, Nc)][χ1; χ2] * env.edges[3,_next(r, Nr), mod1(c₁, Nc)][χS DSt DSb; χ1]
@@ -64,7 +66,6 @@ function correlator_horizontal(
     env.edges[4, mod1(r, Nr),  _prev(c₁, Nc)][χ2 DWt DWb; χ3] * ket[mod1(r, Nr), mod1(c₁, Nc)][d; DNt DEt DSt DWt] * conj(bra[mod1(r, Nr), mod1(c₁, Nc)][d; DNb DEb DSb DWb]) * 
     env.corners[4, _next(r, Nr), _prev(c₁, Nc)][χ1; χ2] * env.edges[3,_next(r, Nr), mod1(c₁, Nc)][χS DSt DSb; χ1]
     for c = c₁+1:c₂
-        println("Starting for c = $c")
         final = @autoopt @tensor left_side[χ6 DWt DWb; χ1] * 
         env.edges[1, _prev(r, Nr), mod1(c, Nc)][χ1 DNt DNb; χ2] * env.corners[1, _prev(r, Nr), _next(c, Nc)][χ2; χ3] *
         ket[mod1(r, Nr), mod1(c, Nc)][dt; DNt DEt DSt DWt] * conj(bra[mod1(r, Nr), mod1(c, Nc)][db; DNb DEb DSb DWb]) * O₂[db; dt] * env.edges[2, mod1(r, Nr), _next(c, Nc)][χ3 DEt DEb; χ4] * 
