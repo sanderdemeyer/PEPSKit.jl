@@ -9,8 +9,8 @@ function correlator_horizontal(
     corr = T[]
     (Nr, Nc) = size(network)
     (r, c₁) = Tuple(inds[1])
-    (r2, c₂) = Tuple(inds[2])
-    @assert r == r2 "Not a horizontal correlation function."
+    (r₂, c₂) = Tuple(inds[2])
+    @assert r == r₂ "Not a horizontal correlation function."
     @assert c₁ < c₂ "The first column index must be less than the second."
 
     @autoopt @tensor left_side[χS DE Dstring; χN] := env.corners[1,_prev(r, Nr), _prev(c₁, Nc)][χ3; χ4] * env.edges[1, _prev(r, Nr), mod1(c₁, Nc)][χ4 DN; χN] * 
@@ -52,8 +52,8 @@ function correlator_horizontal(
     corr = T[]
     (Nr, Nc) = size(network)
     (r, c₁) = Tuple(inds[1])
-    (r2, c₂) = Tuple(inds[2])
-    @assert r == r2 "Not a horizontal correlation function."
+    (r₂, c₂) = Tuple(inds[2])
+    @assert r == r₂ "Not a horizontal correlation function."
     @assert c₁ < c₂ "The first column index must be less than the second."
 
     @autoopt @tensor left_side[χS DE; χN] := env.corners[1,_prev(r, Nr), _prev(c₁, Nc)][χ3; χ4] * env.edges[1, _prev(r, Nr), mod1(c₁, Nc)][χ4 DN; χN] * 
@@ -99,8 +99,8 @@ function correlator_horizontal(
     (r₁, c₁) = Tuple(inds[1])
     (r₂, c₂) = Tuple(inds[2])
 
-    @tensor Oleft[-4 -3; -1 -2] := ρ[mod1(r₁, Nr), mod1(c₁, Nc)][1 2; -1 -2 -3 -4] * O₁[2; 1]
-    @tensor Oright[-4 -3; -1 -2] := ρ[mod1(r₂, Nr), mod1(c₂, Nc)][1 2; -1 -2 -3 -4] * O₂[2; 1]
+    @tensor Oleft[-4 -3; -1 -2] := twist(ρ[mod1(r₁, Nr), mod1(c₁, Nc)], 2)[1 2; -1 -2 -3 -4] * O₁[2; 1]
+    @tensor Oright[-4 -3; -1 -2] := twist(ρ[mod1(r₂, Nr), mod1(c₂, Nc)], 2)[1 2; -1 -2 -3 -4] * O₂[2; 1]
 
     return correlator_horizontal(network, env, Oleft, Oright, inds)
 end
@@ -119,7 +119,7 @@ function correlator_horizontal(
     (r₁, c₁) = Tuple(inds[1])
     (r₂, c₂) = Tuple(inds[2])
 
-    @tensor t[-1 -2 -3 -4; -5 -6 -7 -8] := ρ[mod1(r₁, Nr), mod1(c₁, Nc)][1 2; -1 -2 -3 -4] * ρ[mod1(r₂, Nr), mod1(c₂, Nc)][3 4; -5 -6 -7 -8] * O[2 4; 1 3]
+    @tensor t[-1 -2 -3 -4; -5 -6 -7 -8] := twist(ρ[mod1(r₁, Nr), mod1(c₁, Nc)], 2)[1 2; -1 -2 -3 -4] * twist(ρ[mod1(r₂, Nr), mod1(c₂, Nc)], 2)[3 4; -5 -6 -7 -8] * O[2 4; 1 3]
     U, Σ, V = tsvd(t)
     O₁ = permute(U * sqrt(Σ), ((4,3),(1,2,5)))
     O₂ = permute(sqrt(Σ) * V, ((1,5,4),(2,3)))

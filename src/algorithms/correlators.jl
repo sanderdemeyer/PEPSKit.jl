@@ -10,8 +10,8 @@ function correlator_horizontal(
     corr = T[]
     (Nr, Nc) = size(ket)
     (r, c₁) = Tuple(inds[1])
-    (r2, c₂) = Tuple(inds[2])
-    @assert r == r2 "Not a horizontal correlation function."
+    (r₂, c₂) = Tuple(inds[2])
+    @assert r == r₂ "Not a horizontal correlation function."
     @assert c₁ < c₂ "The first column index must be less than the second."
 
     @autoopt @tensor left_side[χS DEt Dstring DEb; χN] := env.corners[1,_prev(r, Nr), _prev(c₁, Nc)][χ3; χ4] * env.edges[1, _prev(r, Nr), mod1(c₁, Nc)][χ4 DNt DNb; χN] * 
@@ -55,8 +55,8 @@ function correlator_horizontal(
     (Nr, Nc) = size(ket)
     @assert size(ket) == size(bra) "The ket and bra must have the same unit cell."
     (r, c₁) = Tuple(inds[1])
-    (r2, c₂) = Tuple(inds[2])
-    @assert r == r2 "Not a horizontal correlation function."
+    (r₂, c₂) = Tuple(inds[2])
+    @assert r == r₂ "Not a horizontal correlation function."
     @assert c₁ < c₂ "The first column index must be less than the second."
 
     @autoopt @tensor left_side[χS DEt DEb; χN] := env.corners[1,_prev(r, Nr), _prev(c₁, Nc)][χ3; χ4] * env.edges[1, _prev(r, Nr), mod1(c₁, Nc)][χ4 DNt DNb; χN] * 
