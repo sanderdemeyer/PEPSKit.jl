@@ -203,15 +203,15 @@ function Base.adjoint(O::InfinitePEPO)
 end
 
 function trace_out(O::InfinitePEPO)
-    function _trace_out(O::PEPOTensor)
-        @tensor O_tr[-4 -3; -1 -2] := O[1 1; -1 -2 -3 -4]
+    function _trace_out(O)
+        @tensor O_tr[-4 -3; -1 -2] := twist(O, 2)[1 1; -1 -2 -3 -4]
         return O_tr
     end
     return InfinitePartitionFunction(_trace_out.(unitcell(O))[:,:,1])
 end
 
 function MPSKit.expectation_value(O::InfinitePEPO, H::InfinitePEPO, envspace, ctm_alg)
-    network_OH = InfiniteSquareNetwork(_stack_pepos((PEPSKit.unitcell(O), PEPSKit.unitcell(H))))
+    network_OH = InfiniteSquareNetwork(_stack_pepos((twist.(unitcell(O), 2), unitcell(H))))
     env0_OH = CTMRGEnv(network_OH, envspace)
     env_OH, = leading_boundary(env0_OH, network_OH, ctm_alg)
 
@@ -225,7 +225,7 @@ function _expectation_value(O::InfinitePEPO, gate::Pair{NTuple{1, CartesianIndex
     (Nr, Nc) = size(O)
     site = (mod1(gate[1][1][1], Nr), mod1(gate[1][1][2], Nc), 1)
 
-    @tensor t[-4 -3; -1 -2] := O[site...][1 2; -1 -2 -3 -4] * gate[2][2; 1]
+    @tensor t[-4 -3; -1 -2] := twist(O[site...], 2)[1 2; -1 -2 -3 -4] * gate[2][2; 1]
     network = trace_out(O)
     env0 = CTMRGEnv(network, envspace)
     env, = leading_boundary(env0, network, ctm_alg)
@@ -236,7 +236,7 @@ function _expectation_value(O::InfinitePEPO, gate::Pair{NTuple{2, CartesianIndex
     (Nr, Nc) = size(O)
     left = (mod1(gate[1][1][1], Nr), mod1(gate[1][1][2], Nc), 1)
     right = (mod1(gate[1][2][1], Nr), mod1(gate[1][2][2], Nc), 1)
-    @tensor t[-1 -2 -3 -4; -5 -6 -7 -8] := O[left...][1 2; -1 -2 -3 -4] * O[right...][3 4; -5 -6 -7 -8] * gate[2][2 4; 1 3]
+    @tensor t[-1 -2 -3 -4; -5 -6 -7 -8] := twist(O[left...], 2)[1 2; -1 -2 -3 -4] * twist(O[right...], 2)[3 4; -5 -6 -7 -8] * gate[2][2 4; 1 3]
     U, S, V = tsvd(t)
     L = permute(U * sqrt(S), ((4,3),(1,2,5)))
     R = permute(sqrt(S) * V, ((1,5,4),(2,3)))

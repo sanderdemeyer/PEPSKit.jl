@@ -217,8 +217,10 @@ function mpotensor(network::PEPOTraceSandwich{H}) where {H}
     for h in 1:H
         @assert virtualspace(network[h], NORTH) == dual(virtualspace(network[h], SOUTH)) &&
             virtualspace(network[h], EAST) == dual(virtualspace(network[h], WEST)) "Method not yet implemented for given virtual spaces"
-        isdual(virtualspace(network[h], NORTH)) || twist!(F_north, h)
-        isdual(virtualspace(network[h], EAST)) || twist!(F_east, h)
+        isdual(virtualspace(network[h], NORTH)) || twist!(F_north, h + 1)
+        isdual(virtualspace(network[h], EAST)) || twist!(F_east, h + 1)
+        isdual(physicalspace(network[h])) && twist!(network[h], 2)
     end
+    # twist!(network[1], 2)
     return _mpotensor_contraction(F_north, F_east, F_south, F_west, network)
 end

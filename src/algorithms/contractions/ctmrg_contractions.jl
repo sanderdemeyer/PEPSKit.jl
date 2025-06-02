@@ -1586,6 +1586,9 @@ function _pepo_pepotracetensor_expr(
     contract_west=nothing,
 )
     layer = Symbol(h)
+    if h == 1
+        tensorname = Expr(:call, :twist, tensorname, 2)
+    end
     return tensorexpr(
         tensorname,
         (physicallabel(mod1(h + 1, H), args...), physicallabel(h, args...)),
