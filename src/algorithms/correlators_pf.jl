@@ -21,11 +21,11 @@ function correlator_horizontal(
     env.corners[4, _next(r, Nr), _prev(c₁, Nc)][χ1; χ2] * env.edges[3,_next(r, Nr), mod1(c₁, Nc)][χS DS; χ1]
     for c = c₁+1:c₂
         final = @autoopt @tensor left_side[χ6 DW Dstring; χ1] * 
-        env.edges[1, _prev(r, Nr), mod1(c, Nc)][χ1 DN; χ2] * env.corners[1, _prev(r, Nr), _next(c, Nc)][χ2; χ3] *
+        env.edges[1, _prev(r, Nr), mod1(c, Nc)][χ1 DN; χ2] * env.corners[2, _prev(r, Nr), _next(c, Nc)][χ2; χ3] *
         O₂[Dstring DW DS; DN DE] * env.edges[2, mod1(r, Nr), _next(c, Nc)][χ3 DE; χ4] * 
         env.edges[3, _next(r, Nr), mod1(c, Nc)][χ5 DS; χ6] * env.corners[3, _next(r, Nr), _next(c, Nc)][χ4; χ5]
         final_norm = @autoopt @tensor left_side_norm[χ6 DW; χ1] * 
-        env.edges[1, _prev(r, Nr), mod1(c, Nc)][χ1 DN; χ2] * env.corners[1, _prev(r, Nr), _next(c, Nc)][χ2; χ3] *
+        env.edges[1, _prev(r, Nr), mod1(c, Nc)][χ1 DN; χ2] * env.corners[2, _prev(r, Nr), _next(c, Nc)][χ2; χ3] *
         network[mod1(r, Nr), mod1(c, Nc)][DW DS; DN DE] *  env.edges[2, mod1(r, Nr), _next(c, Nc)][χ3 DE; χ4] * 
         env.edges[3, _next(r, Nr), mod1(c, Nc)][χ5 DS; χ6] * env.corners[3, _next(r, Nr), _next(c, Nc)][χ4; χ5]
         push!(corr, final / final_norm)
@@ -64,11 +64,11 @@ function correlator_horizontal(
     env.corners[4, _next(r, Nr), _prev(c₁, Nc)][χ1; χ2] * env.edges[3,_next(r, Nr), mod1(c₁, Nc)][χS DS; χ1]
     for c = c₁+1:c₂
         final = @autoopt @tensor left_side[χ6 DW; χ1] * 
-        env.edges[1, _prev(r, Nr), mod1(c, Nc)][χ1 DN; χ2] * env.corners[1, _prev(r, Nr), _next(c, Nc)][χ2; χ3] *
+        env.edges[1, _prev(r, Nr), mod1(c, Nc)][χ1 DN; χ2] * env.corners[2, _prev(r, Nr), _next(c, Nc)][χ2; χ3] *
         O₂[DW DS; DN DE] * env.edges[2, mod1(r, Nr), _next(c, Nc)][χ3 DE; χ4] * 
         env.edges[3, _next(r, Nr), mod1(c, Nc)][χ5 DS; χ6] * env.corners[3, _next(r, Nr), _next(c, Nc)][χ4; χ5]
         final_norm = @autoopt @tensor left_side_norm[χ6 DW; χ1] * 
-        env.edges[1, _prev(r, Nr), mod1(c, Nc)][χ1 DN; χ2] * env.corners[1, _prev(r, Nr), _next(c, Nc)][χ2; χ3] *
+        env.edges[1, _prev(r, Nr), mod1(c, Nc)][χ1 DN; χ2] * env.corners[2, _prev(r, Nr), _next(c, Nc)][χ2; χ3] *
         network[mod1(r, Nr), mod1(c, Nc)][DW DS; DN DE] *  env.edges[2, mod1(r, Nr), _next(c, Nc)][χ3 DE; χ4] * 
         env.edges[3, _next(r, Nr), mod1(c, Nc)][χ5 DS; χ6] * env.corners[3, _next(r, Nr), _next(c, Nc)][χ4; χ5]
         push!(corr, final / final_norm)
