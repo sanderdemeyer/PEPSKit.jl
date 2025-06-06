@@ -212,6 +212,7 @@ end
 
 function MPSKit.expectation_value(O::InfinitePEPO, H::InfinitePEPO, envspace, ctm_alg)
     network_OH = InfiniteSquareNetwork(_stack_pepos((twist.(unitcell(O), 2), unitcell(H))))
+    network_OH = InfiniteSquareNetwork(_stack_pepos((unitcell(O), unitcell(H))))
     env0_OH = CTMRGEnv(network_OH, envspace)
     env_OH, = leading_boundary(env0_OH, network_OH, ctm_alg)
 
