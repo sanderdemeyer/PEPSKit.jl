@@ -226,6 +226,7 @@ function _expectation_value(O::InfinitePEPO, gate::Pair{NTuple{1, CartesianIndex
     site = (mod1(gate[1][1][1], Nr), mod1(gate[1][1][2], Nc), 1)
 
     @tensor t[-4 -3; -1 -2] := twist(O[site...], 2)[1 2; -1 -2 -3 -4] * gate[2][2; 1]
+    network = trace_out(O)
     return expectation_value(network, ([gate[1][1] => t],), env)
 end
 
@@ -238,6 +239,7 @@ function _expectation_value(O::InfinitePEPO, gate::Pair{NTuple{2, CartesianIndex
     L = permute(U * sqrt(S), ((4,3),(1,2,5)))
     R = permute(sqrt(S) * V, ((1,5,4),(2,3)))
 
+    network = trace_out(O)
     return expectation_value(network, ([gate[1][1] => L, gate[1][2] => R],), env)
 end
 
