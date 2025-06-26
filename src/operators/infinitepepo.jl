@@ -211,7 +211,6 @@ function trace_out(O::InfinitePEPO)
 end
 
 function MPSKit.expectation_value(O::InfinitePEPO, H::InfinitePEPO, envspace, ctm_alg)
-    network_OH = InfiniteSquareNetwork(_stack_pepos((twist.(unitcell(O), 2), unitcell(H))))
     network_OH = InfiniteSquareNetwork(_stack_pepos((unitcell(O), unitcell(H))))
     env0_OH = CTMRGEnv(network_OH, envspace)
     env_OH, = leading_boundary(env0_OH, network_OH, ctm_alg)
@@ -222,18 +221,15 @@ function MPSKit.expectation_value(O::InfinitePEPO, H::InfinitePEPO, envspace, ct
     return network_value(network_OH, env_OH) / network_value(network_O, env_O)
 end
 
-function _expectation_value(O::InfinitePEPO, gate::Pair{NTuple{1, CartesianIndex{2}}, T}, envspace, ctm_alg) where {T<:AbstractTensorMap}
+function _expectation_value(O::InfinitePEPO, gate::Pair{NTuple{1, CartesianIndex{2}}, T}, env::CTMRGEnv) where {T<:AbstractTensorMap}
     (Nr, Nc) = size(O)
     site = (mod1(gate[1][1][1], Nr), mod1(gate[1][1][2], Nc), 1)
 
     @tensor t[-4 -3; -1 -2] := twist(O[site...], 2)[1 2; -1 -2 -3 -4] * gate[2][2; 1]
-    network = trace_out(O)
-    env0 = CTMRGEnv(network, envspace)
-    env, = leading_boundary(env0, network, ctm_alg)
     return expectation_value(network, ([gate[1][1] => t],), env)
 end
 
-function _expectation_value(O::InfinitePEPO, gate::Pair{NTuple{2, CartesianIndex{2}}, T}, envspace, ctm_alg) where {T<:AbstractTensorMap}
+function _expectation_value(O::InfinitePEPO, gate::Pair{NTuple{2, CartesianIndex{2}}, T}, env::CTMRGEnv) where {T<:AbstractTensorMap}
     (Nr, Nc) = size(O)
     left = (mod1(gate[1][1][1], Nr), mod1(gate[1][1][2], Nc), 1)
     right = (mod1(gate[1][2][1], Nr), mod1(gate[1][2][2], Nc), 1)
@@ -242,14 +238,11 @@ function _expectation_value(O::InfinitePEPO, gate::Pair{NTuple{2, CartesianIndex
     L = permute(U * sqrt(S), ((4,3),(1,2,5)))
     R = permute(sqrt(S) * V, ((1,5,4),(2,3)))
 
-    network = trace_out(O)
-    env0 = CTMRGEnv(network, envspace)
-    env, = leading_boundary(env0, network, ctm_alg)
     return expectation_value(network, ([gate[1][1] => L, gate[1][2] => R],), env)
 end
 
-function MPSKit.expectation_value(O::InfinitePEPO, H::LocalOperator, envspace, ctm_alg)
-    return sum([_expectation_value(O, t, envspace, ctm_alg) for t = H.terms])
+function MPSKit.expectation_value(O::InfinitePEPO, H::LocalOperator, env::CTMRGEnv)
+    return sum([_expectation_value(O, t, env) for t = H.terms])
 end
 
 ## Vector interface
