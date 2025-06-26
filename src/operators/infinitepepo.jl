@@ -221,7 +221,7 @@ function MPSKit.expectation_value(O::InfinitePEPO, H::InfinitePEPO, envspace, ct
     return network_value(network_OH, env_OH) / network_value(network_O, env_O)
 end
 
-function _expectation_value(O::InfinitePEPO, gate::Pair{NTuple{1, CartesianIndex{2}}, T}, env::CTMRGEnv) where {T<:AbstractTensorMap}
+function _expectation_value(O::InfinitePEPO, gate::Pair{NTuple{1, CartesianIndex{2}}, T}, env) where {T<:AbstractTensorMap}
     (Nr, Nc) = size(O)
     site = (mod1(gate[1][1][1], Nr), mod1(gate[1][1][2], Nc), 1)
 
@@ -229,7 +229,7 @@ function _expectation_value(O::InfinitePEPO, gate::Pair{NTuple{1, CartesianIndex
     return expectation_value(network, ([gate[1][1] => t],), env)
 end
 
-function _expectation_value(O::InfinitePEPO, gate::Pair{NTuple{2, CartesianIndex{2}}, T}, env::CTMRGEnv) where {T<:AbstractTensorMap}
+function _expectation_value(O::InfinitePEPO, gate::Pair{NTuple{2, CartesianIndex{2}}, T}, env) where {T<:AbstractTensorMap}
     (Nr, Nc) = size(O)
     left = (mod1(gate[1][1][1], Nr), mod1(gate[1][1][2], Nc), 1)
     right = (mod1(gate[1][2][1], Nr), mod1(gate[1][2][2], Nc), 1)
@@ -241,7 +241,7 @@ function _expectation_value(O::InfinitePEPO, gate::Pair{NTuple{2, CartesianIndex
     return expectation_value(network, ([gate[1][1] => L, gate[1][2] => R],), env)
 end
 
-function MPSKit.expectation_value(O::InfinitePEPO, H::LocalOperator, env::CTMRGEnv)
+function MPSKit.expectation_value(O::InfinitePEPO, H::LocalOperator, env)
     return sum([_expectation_value(O, t, env) for t = H.terms])
 end
 
