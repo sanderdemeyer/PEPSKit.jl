@@ -289,6 +289,15 @@ function ChainRulesCore.rrule(
     return pepo, InfinitePEPO_pullback
 end
 
+function ChainRulesCore.rrule(::typeof(InfinitePEPO), t::T) where {T<:AbstractTensorMap}
+    pepo = InfinitePEPO(t)
+    function InfinitePEPO_pullback(Δpepo_)
+        Δt = unthunk(Δpepo_)
+        return NoTangent(), Δt
+    end
+    return pepo, InfinitePEPO_pullback
+end
+
 function ChainRulesCore.rrule(
     ::Type{InfiniteSquareNetwork},
     top::InfinitePEPS,
