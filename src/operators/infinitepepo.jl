@@ -278,8 +278,8 @@ Base.rot180(A::InfinitePEPO) = InfinitePEPO(stack(rot180, eachslice(unitcell(A);
 
 function ChainRulesCore.rrule(
     ::Type{InfinitePEPO},
-    t::PEPOTensor,
-)
+    t::AbstractTensorMap{T,S,2,4},
+) where {T,S}
     pepo = InfinitePEPO(t)
 
     function InfinitePEPO_pullback(Δpepo_)
