@@ -276,17 +276,13 @@ Base.rot180(A::InfinitePEPO) = InfinitePEPO(stack(rot180, eachslice(unitcell(A);
 
 ## Chainrules
 
-function ChainRulesCore.rrule(
-    ::Type{InfinitePEPO},
-    t::T,
-) where {T<:AbstractTensorMap}
-    pepo = InfinitePEPO(t)
-
-    function InfinitePEPO_pullback(Δpepo_)
-        Δt = unthunk(Δpepo_)
-        return NoTangent(), Δt
+function ChainRulesCore.rrule(::Type{InfinitePEPO}, A::Array{<:PEPOTensor,3})
+    network = InfinitePEPO(A)
+    function InfinitePEPO_pullback(Δnetwork_)
+        Δnetwork = unthunk(Δnetwork_)
+        return NoTangent(), unitcell(Δnetwork)
     end
-    return pepo, InfinitePEPO_pullback
+    return network, InfinitePEPO_pullback
 end
 
 function ChainRulesCore.rrule(::typeof(InfinitePEPO), t::T) where {T<:AbstractTensorMap}
