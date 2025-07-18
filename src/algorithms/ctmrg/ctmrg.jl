@@ -134,7 +134,7 @@ function leading_boundary(
                 ctmrg_logiter!(log, iter, η, network, env)
             end
         end
-        return env, info
+        return env, info, η
     end
 end
 function leading_boundary(env₀::CTMRGEnv, state, args...; kwargs...)
