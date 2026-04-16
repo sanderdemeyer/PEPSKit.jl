@@ -38,6 +38,9 @@ end
         @time @safetestset "correlation length" begin
             include("ctmrg/correlation_length.jl")
         end
+        @time @safetestset "Triangular" begin
+            include("ctmrg/triangular.jl")
+        end
     end
     if GROUP == "ALL" || GROUP == "GRADIENTS"
         @time @safetestset "CTMRG gradients" begin
