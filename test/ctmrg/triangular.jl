@@ -169,9 +169,9 @@ end
         )
         # instantiate because hook_pullback doesn't go through the keyword selector...
         concrete_gradient_alg = if isnothing(gradient_alg)
-            nothing # TODO: add this to the PEPSKit.GradMode selector?
+            nothing
         else
-            PEPSKit.GradMode(; alg = gradient_alg, tol = gradtol, iterscheme = gradient_iterscheme)
+            PEPSKit.GradientAlgorithm(; alg = gradient_alg, tol = gradtol)
         end
         env, = leading_boundary(
             CTMRGEnvTriangular(randn, ComplexF64, Vspace ⊗ Vspace', Espace),
