@@ -53,9 +53,9 @@ end
 
 function _contract_edges_60((r, c)::Tuple{Int, Int}, network::InfiniteTriangularNetwork{P}, env::CTMRGEnvTriangular) where {P <: PEPSSandwichTriangular}
     O_r_c = network[r, c]
-    O_rn_cn = network[_next(r, end), _next(c, end)]
-    return @tensor opt = true ket(O_r_c)[dTR; DTRt120 DTRt60 DTRt0 DTRt300 DBLt60 DTRt180] * ket(O_rn_cn)[dBL; DBLt120 DBLt60 DBLt0 DBLt300 DBLt240 DBLt180] *
-        conj(bra(O_r_c)[dTR; DTRb120 DTRb60 DTRb0 DTRb300 DBLb60 DTRb180]) * conj(bra(O_rn_cn)[dBL; DBLb120 DBLb60 DBLb0 DBLb300 DBLb240 DBLb180]) *
+    O_rn_cp = network[_next(r, end), _prev(c, end)]
+    return @tensor opt = true ket(O_r_c)[dTR; DTRt120 DTRt60 DTRt0 DTRt300 DBLt60 DTRt180] * ket(O_rn_cp)[dBL; DBLt120 DBLt60 DBLt0 DBLt300 DBLt240 DBLt180] *
+        conj(bra(O_r_c)[dTR; DTRb120 DTRb60 DTRb0 DTRb300 DBLb60 DTRb180]) * conj(bra(O_rn_cp)[dBL; DBLb120 DBLb60 DBLb0 DBLb300 DBLb240 DBLb180]) *
         env.C[1, _prev(r, end), c][χbNW DTRt120 DTRb120; χN] * env.C[2, _prev(r, end), _next(c, end)][χN DTRt60 DTRb60; χNE] * env.C[3, r, _next(c, end)][χNE DTRt0 DTRb0; χaSE] *
         env.C[4, _next(r + 1, end), _prev(c, end)][χbSE DBLt300 DBLb300; χS] * env.C[5, _next(r + 1, end), _prev(c - 1, end)][χS DBLt240 DBLb240; χSW] * env.C[6, _next(r, end), _prev(c - 1, end)][χSW DBLt180 DBLb180; χaNW] *
         env.Eb[3, _next(r, end), c][χaSE DTRt300 DTRb300; χCSE] * env.Ea[3, _next(r, end), c][χCSE DBLt0 DBLb0; χbSE] *

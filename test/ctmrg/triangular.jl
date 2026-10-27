@@ -360,3 +360,53 @@ end
         end
     end
 end
+
+@testset "Triangular nearest-neighbor energy" begin
+    Random.seed!(28514)
+    pspace, vspace = ComplexSpace(2), ComplexSpace(1)
+    vspaces = vspace^3 ⊗ (vspace')^3
+    Sx = TensorMap(ComplexF64[0 1; 1 0] / 2, pspace, pspace)
+    Sy = TensorMap(ComplexF64[0 -im; im 0] / 2, pspace, pspace)
+    Sz = TensorMap(ComplexF64[1 0; 0 -1] / 2, pspace, pspace)
+    spins = (Sx, Sy, Sz)
+    # Unequal site norms expose neighbor-index errors even in identity contractions.
+    vectors = [randn(ComplexF64, 2) for r in 1:3, c in 1:4]
+    tensors = map(v -> TensorMap(reshape(v, 2, 1, 1, 1, 1, 1, 1), pspace, vspaces), vectors)
+    state = InfinitePEPSTriangular(tensors)
+    network = InfiniteTriangularNetwork(state)
+    env = CTMRGEnvTriangular(ones, ComplexF64, vspace ⊗ vspace', vspace; unitcell = size(state))
+    contractions = (PEPSKit._contract_edges_0, PEPSKit._contract_edges_60, PEPSKit._contract_edges_120)
+    offsets = ((0, 1), (1, -1), (1, 0))
+    pairs = ((Sx, Sz), (Sy, Sx), (Sz, Sy))
+    ops = map(p -> p[1] ⊗ p[2], pairs)
+    expectation(v, op) = dot(v, reshape(convert(Array, op), 2, 2) * v) / dot(v, v)
+    expected = 0.0
+    expected_horizontal = 0.0
+    for r in 1:3, c in 1:4
+        v = vectors[r, c]
+        onsite = real(expectation(v, Sz))
+        expected += onsite
+        expected_horizontal += onsite
+        for (i, (contract, (δr, δc))) in enumerate(zip(contractions, offsets))
+            w = vectors[mod1(r + δr, 3), mod1(c + δc, 4)]
+            n = dot(v, v) * dot(w, w)
+            bond = expectation(v, pairs[i][1]) * expectation(w, pairs[i][2])
+            @test contract((r, c), network, env) ≈ n
+            @test contract((r, c), network, env, id(pspace ⊗ pspace)) ≈ n
+            @test contract((r, c), network, env, ops[i]) / n ≈ bond
+            expected += real(bond)
+            i == 1 && (expected_horizontal += real(bond))
+        end
+    end
+    @test PEPSKit.energy(state, env, Sz, ops) ≈ expected
+    @test PEPSKit.energy(state, env, Sz, ops[1]) ≈ expected_horizontal
+
+    # Spin-1/2 120° product state: each of the three bonds contributes -1/8 per site.
+    rotation(θ) = TensorMap([cos(θ / 2) -sin(θ / 2); sin(θ / 2) cos(θ / 2)], pspace, pspace)
+    A = TensorMap(reshape([1.0, 0.0], 2, 1, 1, 1, 1, 1, 1), pspace, vspaces)
+    B, C = rotation(2π / 3) * A, rotation(4π / 3) * A
+    state = InfinitePEPSTriangular([A B C; C A B; B C A])
+    env = CTMRGEnvTriangular(ones, Float64, vspace ⊗ vspace', vspace; unitcell = (3, 3))
+    h = sum(S ⊗ S for S in spins)
+    @test PEPSKit.energy(state, env, zero(Sz), (h, h, h)) / length(state) ≈ -3 / 8
+end

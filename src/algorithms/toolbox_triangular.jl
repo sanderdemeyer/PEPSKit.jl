@@ -25,4 +25,26 @@ function energy(state::InfinitePEPSTriangular, env::CTMRGEnvTriangular, args...)
     return energy(InfiniteTriangularNetwork(state), env, args...)
 end
 
-# TODO: write a proper cost_function that works on an InfinitePEPSTriangular and a LocalOperator, and use it in the optimization loop. For now, we just compute the energy using the network contraction functions above.
+"""
+    energy(network::InfiniteTriangularNetwork, env, onesite_op, twosite_ops::NTuple{3})
+
+Compute the energy per unit cell with a one-site term and nearest-neighbor terms
+in the 0°, 60°, and 120° bond families. The oriented bonds connect `(r, c)` to
+`(r, c + 1)`, `(r + 1, c - 1)`, and `(r + 1, c)`, respectively.
+Divide by `length(network)` for the energy per site.
+"""
+function energy(network::InfiniteTriangularNetwork{P}, env::CTMRGEnvTriangular, onesite_op, twosite_ops::NTuple{3, AbstractTensorMap}) where {P <: PEPSSandwichTriangular}
+    contractions = (_contract_edges_0, _contract_edges_60, _contract_edges_120)
+    E = sum(Iterators.product(axes(network)...)) do site
+        expval_onesite = _contract_corners(site, network, env, onesite_op) / _contract_corners(site, network, env)
+        expval_twosite = sum(zip(contractions, twosite_ops)) do (contract, op)
+            return contract(site, network, env, op) / contract(site, network, env)
+        end
+        return expval_onesite + expval_twosite
+    end
+    ignore_derivatives() do
+        isapprox(imag(E), 0; atol = sqrt(eps(real(E)))) ||
+            @warn "Expectation value is not real: $E."
+    end
+    return real(E)
+end
