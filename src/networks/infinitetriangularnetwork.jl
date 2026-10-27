@@ -13,19 +13,18 @@ struct InfiniteTriangularNetwork{O}
     A::Matrix{O}
     InfiniteTriangularNetwork{O}(A::Matrix{O}) where {O} = new{O}(A)
     function InfiniteTriangularNetwork(A::Matrix)
-        # for I in eachindex(IndexCartesian(), A)
-        #     d, w = Tuple(I)
-        #     northwest_virtualspace(A[d, w]) ==
-        #         _elementwise_dual(southeast_virtualspace(A[_prev(d, end), w])) || throw(
-        #         SpaceMismatch("North virtual space at site $((d, w)) does not match.")
-        #     )
-        #     northeast_virtualspace(A[d, w]) ==
-        #         _elementwise_dual(southwest_virtualspace(A[d, _next(w, end)])) ||
-        #         throw(SpaceMismatch("East virtual space at site $((d, w)) does not match."))
-        #     east_virtualspace(A[d, w]) ==
-        #         _elementwise_dual(west_virtualspace(A[d, _next(w, end)])) ||
-        #         throw(SpaceMismatch("East virtual space at site $((d, w)) does not match."))
-        # end
+        for I in eachindex(IndexCartesian(), A)
+            r, c = Tuple(I)
+            virtualspace(A[r, c], 1) ==
+                _elementwise_dual(virtualspace(A[_prev(r, end), c], 4)) ||
+                throw(SpaceMismatch("Northwest virtual space at site $((r, c)) does not match."))
+            virtualspace(A[r, c], 2) ==
+                _elementwise_dual(virtualspace(A[_prev(r, end), _next(c, end)], 5)) ||
+                throw(SpaceMismatch("Northeast virtual space at site $((r, c)) does not match."))
+            virtualspace(A[r, c], 3) ==
+                _elementwise_dual(virtualspace(A[r, _next(c, end)], 6)) ||
+                throw(SpaceMismatch("East virtual space at site $((r, c)) does not match."))
+        end
         return InfiniteTriangularNetwork{eltype(A)}(A)
     end
 end

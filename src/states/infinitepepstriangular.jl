@@ -12,7 +12,17 @@ struct InfinitePEPSTriangular{T <: PEPSTensorTriangular}
     InfinitePEPSTriangular{T}(A::Matrix{T}) where {T <: PEPSTensorTriangular} = new{T}(A)
     function InfinitePEPSTriangular(A::Array{T, 2}) where {T <: PEPSTensorTriangular}
         bosonic_braiding = BraidingStyle(sectortype(T)) === Bosonic()
-        # TODO: check braiding and spaces
+        for (r, c) in Tuple.(CartesianIndices(A))
+            (bosonic_braiding || !isdual(physicalspace(A[r, c]))) ||
+                throw(ArgumentError("Dual physical spaces for symmetry sectors with non-trivial twists are not allowed (for now)."))
+            northwest_virtualspace(A[r, c]) == southeast_virtualspace(A[_prev(r, end), c])' ||
+                throw(SpaceMismatch("Northwest virtual space at site $((r, c)) does not match."))
+            northeast_virtualspace(A[r, c]) == southwest_virtualspace(A[_prev(r, end), _next(c, end)])' ||
+                throw(SpaceMismatch("Northeast virtual space at site $((r, c)) does not match."))
+            east_virtualspace(A[r, c]) == west_virtualspace(A[r, _next(c, end)])' ||
+                throw(SpaceMismatch("East virtual space at site $((r, c)) does not match."))
+            dim(space(A[r, c])) > 0 || @warn "no fusion channels at site ($r, $c)"
+        end
         return new{T}(A)
     end
 end
@@ -38,11 +48,11 @@ of the PEPS tensor at each site in the unit cell as a matrix.
 function InfinitePEPSTriangular(
         f, T::Type{<:Number}, Pspaces::M, NWspaces::M, NEspaces::M = NWspaces, Espaces::M = NWspaces
     ) where {M <: AbstractMatrix{<:ElementarySpace}}
-    size(Pspaces) == size(NEspaces) == size(NEspaces) == size(Espaces) ||
+    size(Pspaces) == size(NWspaces) == size(NEspaces) == size(Espaces) ||
         throw(ArgumentError("Input spaces should have equal sizes."))
 
     SEspaces = adjoint.(circshift(NWspaces, (-1, 0)))
-    SWspaces = adjoint.(NEspaces)
+    SWspaces = adjoint.(circshift(NEspaces, (-1, 1)))
     Wspaces = adjoint.(circshift(Espaces, (0, 1)))
 
     A = map(Pspaces, NWspaces, NEspaces, Espaces, SEspaces, SWspaces, Wspaces) do P, NW, NE, E, SE, SW, W
