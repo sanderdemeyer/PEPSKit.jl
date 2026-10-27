@@ -72,12 +72,15 @@ function _relative_truncation_error(S, isqrtS, truncation_error)
     end
 end
 
+_normalize_corner_environment(ρ) = ρ / norm(ρ)
+
 function calculate_twothirds_projectors(network::InfiniteTriangularNetwork{P}, env, trunc) where {P}
     projectors = dtmap(eachcoordinate(network, 1:6)) do (dir, r, c)
         ρL = build_double_corner_matrix_triangular(network, env, _prev(dir, 6), r, c)
         ρR = build_double_corner_matrix_triangular(network, env, _next(dir, 6), r, c)
-        ρρ = ρL * ρR
-        ρρ /= norm(ρρ)
+        ρL = _normalize_corner_environment(ρL)
+        ρR = _normalize_corner_environment(ρR)
+        ρρ = _normalize_corner_environment(ρL * ρR)
 
         trunc′ = _truncation_strategy(trunc, env.Ea[dir, r, c])
         U, S, V, truncation_error = svd_trunc(ρρ; trunc = trunc′)
@@ -96,20 +99,21 @@ function calculate_full_projectors(network::InfiniteTriangularNetwork{P}, env, t
         ρL = build_double_corner_matrix_triangular(network, env, mod1(dir - 1, 6), r, c)
         ρR = build_double_corner_matrix_triangular(network, env, mod1(dir + 1, 6), r, c)
         ρ̄ = build_double_corner_matrix_triangular(network, env, mod1(dir + 3, 6), r, c)
-        ρ̄ /= norm(ρ̄)
+        ρ̄ = _normalize_corner_environment(ρ̄)
         Ū, S̄, V̄ᴴ = svd_full(ρ̄)
         sqrtS̄ = sdiag_pow(S̄, 0.5)
         ρ̄ᴿ = Ū * sqrtS̄
         ρ̄ᴸ = sqrtS̄ * V̄ᴴ
-        ρρ = ρ̄ᴸ * ρL * ρR * ρ̄ᴿ
-        ρρ /= norm(ρρ)
+        ρL = _normalize_corner_environment(ρ̄ᴸ * ρL)
+        ρR = _normalize_corner_environment(ρR * ρ̄ᴿ)
+        ρρ = _normalize_corner_environment(ρL * ρR)
 
         trunc′ = _truncation_strategy(trunc, env.Ea[dir, r, c])
         U, S, Vᴴ, truncation_error = svd_trunc(ρρ; trunc = trunc′)
         isqrtS = sdiag_pow(S, -0.5)
         truncation_error = _relative_truncation_error(S, isqrtS, truncation_error)
-        Pb = ρR * ρ̄ᴿ * Vᴴ' * isqrtS
-        Pa = isqrtS * U' * ρ̄ᴸ * ρL
+        Pb = ρR * Vᴴ' * isqrtS
+        Pa = isqrtS * U' * ρL
 
         return Pa, Pb, S, truncation_error
     end
