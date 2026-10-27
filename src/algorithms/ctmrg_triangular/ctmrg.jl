@@ -5,7 +5,10 @@ abstract type CTMRGAlgorithmTriangular end
 
 Return the contracted environment and convergence information. `info.converged` and
 `info.convergence_error` describe convergence; `info.convergence_metric` is retained as
-an alias for the latter. `info.contraction_metrics` contains `corner_truncation_error`
+an alias for the latter. Convergence is the maximum singular-value distance of all
+six corners and twelve edge halves at every site, following PEPSKit's native tensor
+bipartitions and sector-aware distance. Spectral convergence does not imply an
+elementwise fixed point. `info.contraction_metrics` contains `corner_truncation_error`
 and `edge_truncation_error`, maximized over all sites and directions of the final
 iteration, and their maximum `truncation_error`.
 
@@ -24,15 +27,16 @@ function leading_boundary(
     log = ignore_derivatives(() -> MPSKit.IterLog("CTMRG"))
     return with_verbosity(; alg.verbosity) do
         env = deepcopy(env₀)
-        S_old = DiagonalTensorMap.(id.(domain.(env₀.C)))
+        CS, TS = ignore_derivatives() do
+            return convergence_spectra(env₀, alg)
+        end
         η = one(real(scalartype(network)))
         ctmrg_loginit!(log, η, network, env₀)
         local info_iter
         converged = false
         for iter in 1:(alg.maxiter)
             env, info_iter = ctmrg_iteration(network, env, alg)
-            η = calc_convergence(info_iter.S, S_old)
-            S_old = copy(info_iter.S)
+            η, CS, TS = calc_convergence(env, CS, TS, alg)
 
             if η ≤ alg.tol && iter ≥ alg.miniter
                 ctmrg_logfinish!(log, iter, η, network, env)
@@ -56,14 +60,9 @@ function leading_boundary(env₀::CTMRGEnvTriangular, state, args...; kwargs...)
     return leading_boundary(env₀, InfiniteTriangularNetwork(state), args...; kwargs...)
 end
 
-function calc_convergence(S_new::Array{T, 3}, S_old::Array{T, 3}) where {E, S, T <: DiagonalTensorMap{E, S}}
-    ε = Inf
-    function dist(S1, S2)
-        if space(S1) == space(S2)
-            return norm(S1^4 - S2^4)
-        else
-            return Inf
-        end
-    end
-    return maximum(dist.(S_new, S_old))
+convergence_tensors(env::CTMRGEnvTriangular, alg) = (env.C, [env.Ea; env.Eb])
+
+function convergence_spectra(env::CTMRGEnvTriangular, alg)
+    corners, edges = convergence_tensors(env, alg)
+    return corner_spectra(corners, alg), edge_spectra(edges, alg)
 end

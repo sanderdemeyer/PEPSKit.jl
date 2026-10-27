@@ -327,6 +327,26 @@ end
     end
 end
 
+@testset "CTM_triangular - Convergence spectra" begin
+    Random.seed!(71834)
+    vspace = ComplexSpace(2)
+    alg = SimultaneousCTMRGTriangular(; verbosity = 0)
+    for V in (vspace, vspace ⊗ vspace')
+        env = CTMRGEnvTriangular(randn, ComplexF64, V, vspace; unitcell = (1, 2))
+        CS, TS = PEPSKit.convergence_spectra(env, alg)
+        @test size(CS) == (6, 1, 2)
+        @test size(TS) == (12, 1, 2)
+        @test first(PEPSKit.calc_convergence(env, CS, TS, alg)) == 0
+        for field in (:C, :Ea, :Eb)
+            changed = deepcopy(env)
+            tensors = getproperty(changed, field)
+            expected = norm(tensors[6, 1, 2])
+            tensors[6, 1, 2] *= 2
+            @test first(PEPSKit.calc_convergence(changed, CS, TS, alg)) ≈ expected
+        end
+    end
+end
+
 @testset "CTM_triangular - Iteration diagnostics" begin
     Random.seed!(88193)
     vspace = ComplexSpace(2)
@@ -347,7 +367,9 @@ end
             _, info₂ = PEPSKit.ctmrg_iteration(network, env₁, alg)
             for (maxiter, miniter, tol, expected) in ((1, 1, Inf, info₁), (2, 2, Inf, info₂), (1, 1, 0.0, info₁))
                 alg = SimultaneousCTMRGTriangular(; projector_alg, conditioning, trunctype, verbosity = 0, maxiter, miniter, tol)
-                _, info = leading_boundary(env₀, network, alg)
+                env, info = leading_boundary(env₀, network, alg)
+                CS, TS = PEPSKit.convergence_spectra(maxiter == 1 ? env₀ : env₁, alg)
+                @test info.convergence_error ≈ first(PEPSKit.calc_convergence(env, CS, TS, alg))
                 metrics = info.contraction_metrics
                 @test metrics == expected.contraction_metrics
                 @test all(isfinite, metrics)
