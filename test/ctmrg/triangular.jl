@@ -130,7 +130,7 @@ end
                 return PEPSKit._truncate_edge(mats[dir, r, c], ρL, ρR, trunc′; conditioning)
             end
             expected = PEPSKit.normalize_edges(CTMRGEnvTriangular(preliminary.C, getindex.(edges, 1), getindex.(edges, 2)))
-            updated = PEPSKit.renormalize_edges(network, preliminary, mats, trunc; conditioning)
+            updated, = PEPSKit.renormalize_edges(network, preliminary, mats, trunc; conditioning)
             @test all(isapprox.(updated.Ea, expected.Ea))
             @test all(isapprox.(updated.Eb, expected.Eb))
             @test preliminary.Ea == previous.Ea
@@ -296,5 +296,67 @@ end
             return E, only(g)
         end
         @test dfs1 ≈ dfs2 atol = 1.0e-2
+    end
+end
+
+@testset "CTM_triangular - Truncation diagnostics" begin
+    V = ComplexSpace(2) ⊗ ComplexSpace(2)
+    for T in (Float64, ComplexF64), conditioning in (false, true), scale in (1.0e-30, 1.0, 1.0e30)
+        for values in ([4.0, 3.0, 2.0, 1.0], [4.0, 3.0, 1.0e-9, 2.0e-10], [4.0, 3.0, 1.0e-14, 2.0e-15], [4.0, 3.0, 0.0, 0.0])
+            mat = TensorMap(Matrix(Diagonal(T.(scale .* values))), V, V)
+            for rank in 1:5
+                _, _, error = PEPSKit._truncate_edge(mat, id(V), id(V), truncrank(rank); conditioning)
+                kept = values[1:min(rank, end)]
+                discarded = [values[(min(rank, end) + 1):end]; filter(<(eps(Float64)^(3 / 4) * maximum(kept)), kept)]
+                @test error ≈ norm(discarded) / norm(kept) rtol = 1.0e-12
+            end
+            _, _, error = PEPSKit._truncate_edge(mat, id(V), id(V), notrunc(); conditioning)
+            discarded = filter(<(eps(Float64)^(3 / 4) * maximum(values)), values)
+            @test error ≈ norm(discarded) / norm(values) rtol = 1.0e-12
+        end
+    end
+
+    # Non-Abelian sector dimensions must weight both the cutoff loss and norm(S).
+    S = DiagonalTensorMap([4.0, 3.0, 1.0e-14], SU2Space(0 => 1, 1 // 2 => 2))
+    isqrtS = PEPSKit.sdiag_pow(S, -0.5)
+    error = PEPSKit._relative_truncation_error(S, isqrtS, 2.0e-15)
+    @test error ≈ sqrt((2.0e-15)^2 + 2 * (1.0e-14)^2) / sqrt(4.0^2 + 2 * 3.0^2)
+    for S in (DiagonalTensorMap(zeros(2), ComplexSpace(2)), DiagonalTensorMap(Float64[], ComplexSpace(0)))
+        @test iszero(PEPSKit._relative_truncation_error(S, S, 0.0))
+        @test isinf(PEPSKit._relative_truncation_error(S, S, 1.0))
+    end
+end
+
+@testset "CTM_triangular - Iteration diagnostics" begin
+    Random.seed!(88193)
+    vspace = ComplexSpace(2)
+    sz = (1, 2)
+    for sandwich in (false, true)
+        tensors = map(Iterators.product(1:sz[1], 1:sz[2])) do _
+            if sandwich
+                ket = randn(ComplexF64, vspace, vspace^3 ⊗ (vspace')^3)
+                return ket, copy(ket)
+            end
+            return randn(ComplexF64, vspace^3, vspace^3)
+        end
+        network = InfiniteTriangularNetwork(tensors)
+        env₀ = CTMRGEnvTriangular(randn, ComplexF64, sandwich ? vspace ⊗ vspace' : vspace, vspace; unitcell = sz)
+        for projector_alg in (:twothirds, :full), conditioning in (false, true), trunctype in (:truncrank, :FixedSpaceTruncation)
+            alg = SimultaneousCTMRGTriangular(; projector_alg, conditioning, trunctype, verbosity = 0)
+            env₁, info₁ = PEPSKit.ctmrg_iteration(network, env₀, alg)
+            _, info₂ = PEPSKit.ctmrg_iteration(network, env₁, alg)
+            for (maxiter, miniter, tol, expected) in ((1, 1, Inf, info₁), (2, 2, Inf, info₂), (1, 1, 0.0, info₁))
+                alg = SimultaneousCTMRGTriangular(; projector_alg, conditioning, trunctype, verbosity = 0, maxiter, miniter, tol)
+                _, info = leading_boundary(env₀, network, alg)
+                metrics = info.contraction_metrics
+                @test metrics == expected.contraction_metrics
+                @test all(isfinite, metrics)
+                @test metrics.corner_truncation_error > 0
+                @test metrics.edge_truncation_error > 0
+                @test metrics.truncation_error == max(metrics.corner_truncation_error, metrics.edge_truncation_error)
+                @test info.converged == isinf(tol)
+                @test info.convergence_error == info.convergence_metric
+            end
+        end
     end
 end

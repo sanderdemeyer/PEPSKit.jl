@@ -29,14 +29,18 @@ function ctmrg_iteration(network::InfiniteTriangularNetwork, env::CTMRGEnvTriang
     else
         trunc = trunc_type(dim(domain(env.C[1, 1, 1])[1]))
     end
-    Pas, Pbs, S = calculate_projectors(network, env, trunc, alg.projector_alg)
+    Pas, Pbs, S, corner_truncation_error = calculate_projectors(network, env, trunc, alg.projector_alg)
 
     env = renormalize_corners!(network, env, Pas, Pbs)
     env = normalize_corners(env)
 
     mats, env = semi_renormalize(network, env, Pas, Pbs, trunc)
-    env = renormalize_edges(network, env, mats, trunc; alg.conditioning)
-    return env, S
+    env, edge_truncation_error = renormalize_edges(network, env, mats, trunc; alg.conditioning)
+    truncation_error = max(corner_truncation_error, edge_truncation_error)
+    info = (;
+        contraction_metrics = (; truncation_error, corner_truncation_error, edge_truncation_error), S,
+    )
+    return env, info
 end
 
 function calculate_projectors(network, env, trunc, projector_alg)
@@ -56,6 +60,18 @@ function _truncation_strategy(::FixedSpaceTruncation, edge)
     return isdual(tspace) ? truncspace(flip(tspace)) : truncspace(tspace)
 end
 
+# Include retained values suppressed by the inverse square root, without subtracting
+# nearly equal norms. Normalize by norm(S), as in the square CTMRG projectors.
+function _relative_truncation_error(S, isqrtS, truncation_error)
+    return ignore_derivatives() do
+        discarded_S = DiagonalTensorMap(S.data .* iszero.(isqrtS.data), space(S, 1))
+        discarded_norm = hypot(truncation_error, norm(discarded_S))
+        retained_norm = norm(S)
+        iszero(retained_norm) && return iszero(discarded_norm) ? zero(discarded_norm) : oftype(discarded_norm, Inf)
+        return discarded_norm / retained_norm
+    end
+end
+
 function calculate_twothirds_projectors(network::InfiniteTriangularNetwork{P}, env, trunc) where {P}
     projectors = dtmap(eachcoordinate(network, 1:6)) do (dir, r, c)
         ρL = build_double_corner_matrix_triangular(network, env, _prev(dir, 6), r, c)
@@ -64,14 +80,15 @@ function calculate_twothirds_projectors(network::InfiniteTriangularNetwork{P}, e
         ρρ /= norm(ρρ)
 
         trunc′ = _truncation_strategy(trunc, env.Ea[dir, r, c])
-        U, S, V = svd_trunc(ρρ; trunc = trunc′)
+        U, S, V, truncation_error = svd_trunc(ρρ; trunc = trunc′)
         iqsrtS = sdiag_pow(S, -0.5)
+        truncation_error = _relative_truncation_error(S, iqsrtS, truncation_error)
 
         Pb = ρR * V' * iqsrtS
         Pa = iqsrtS * U' * ρL
-        return Pa, Pb, S
+        return Pa, Pb, S, truncation_error
     end
-    return getindex.(projectors, 1), getindex.(projectors, 2), getindex.(projectors, 3)
+    return getindex.(projectors, 1), getindex.(projectors, 2), getindex.(projectors, 3), maximum(x -> x[4], projectors)
 end
 
 function calculate_full_projectors(network::InfiniteTriangularNetwork{P}, env, trunc) where {P}
@@ -88,14 +105,15 @@ function calculate_full_projectors(network::InfiniteTriangularNetwork{P}, env, t
         ρρ /= norm(ρρ)
 
         trunc′ = _truncation_strategy(trunc, env.Ea[dir, r, c])
-        U, S, Vᴴ = svd_trunc(ρρ; trunc = trunc′)
+        U, S, Vᴴ, truncation_error = svd_trunc(ρρ; trunc = trunc′)
         isqrtS = sdiag_pow(S, -0.5)
+        truncation_error = _relative_truncation_error(S, isqrtS, truncation_error)
         Pb = ρR * ρ̄ᴿ * Vᴴ' * isqrtS
         Pa = isqrtS * U' * ρ̄ᴸ * ρL
 
-        return Pa, Pb, S
+        return Pa, Pb, S, truncation_error
     end
-    return getindex.(projectors, 1), getindex.(projectors, 2), getindex.(projectors, 3)
+    return getindex.(projectors, 1), getindex.(projectors, 2), getindex.(projectors, 3), maximum(x -> x[4], projectors)
 end
 
 function renormalize_corners!(network::InfiniteTriangularNetwork{P}, env, Pas, Pbs) where {P <: PEPSSandwichTriangular}
@@ -152,11 +170,12 @@ function _truncate_edge(mat, ρL, ρR, trunc; conditioning = true)
     ρ = ρL * mat * ρR
 
     ρ /= norm(ρ)
-    U, S, Vᴴ = svd_trunc(ρ; trunc)
+    U, S, Vᴴ, truncation_error = svd_trunc(ρ; trunc)
     isqrtS = sdiag_pow(S, -0.5)
+    truncation_error = _relative_truncation_error(S, isqrtS, truncation_error)
     Ea = _permute_edge(isqrtS * U' * ρL * mat)
     Eb = mat * ρR * Vᴴ' * isqrtS
-    return Ea, Eb
+    return Ea, Eb, truncation_error
 end
 
 function renormalize_edges(network::InfiniteTriangularNetwork, env::CTMRGEnvTriangular, mats, trunc; conditioning = true)
@@ -165,7 +184,8 @@ function renormalize_edges(network::InfiniteTriangularNetwork, env::CTMRGEnvTria
         trunc′ = _truncation_strategy(trunc, env.Ea[dir, r, c])
         return _truncate_edge(mats[dir, r, c], ρL, ρR, trunc′; conditioning)
     end
-    return normalize_edges(CTMRGEnvTriangular(env.C, getindex.(edges, 1), getindex.(edges, 2)))
+    env′ = normalize_edges(CTMRGEnvTriangular(env.C, getindex.(edges, 1), getindex.(edges, 2)))
+    return env′, maximum(x -> x[3], edges)
 end
 
 function normalize_corners(env::CTMRGEnvTriangular)
