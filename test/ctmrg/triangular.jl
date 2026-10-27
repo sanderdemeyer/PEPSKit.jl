@@ -383,6 +383,22 @@ end
     end
 end
 
+@testset "Triangular algorithm selection" begin
+    V = ComplexSpace(1)
+    state = InfinitePEPSTriangular(ones(ComplexF64, ComplexSpace(2), V^3 ⊗ (V')^3))
+    env₀ = CTMRGEnvTriangular(ones, ComplexF64, V ⊗ V', V)
+    kwargs = (; tol = 1.0e-9, maxiter = 2, miniter = 2, verbosity = 0, conditioning = false, projector_alg = :full, trunctype = :FixedSpaceTruncation)
+    alg = SimultaneousCTMRGTriangular(; kwargs...)
+    @test PEPSKit.select_algorithm(leading_boundary, env₀; kwargs...) == alg
+    env, info = leading_boundary(env₀, state, alg)
+    for network in (state, InfiniteTriangularNetwork(state))
+        env′, info′ = leading_boundary(env₀, network; alg = :SimultaneousCTMRGTriangular, kwargs...)
+        @test (env′.C, env′.Ea, env′.Eb) == (env.C, env.Ea, env.Eb)
+        @test info′ == info
+    end
+    @test_throws ArgumentError leading_boundary(env₀, state; alg = :unknown)
+end
+
 @testset "Triangular nearest-neighbor energy" begin
     Random.seed!(28514)
     pspace, vspace = ComplexSpace(2), ComplexSpace(1)
