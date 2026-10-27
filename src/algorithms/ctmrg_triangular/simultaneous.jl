@@ -1,3 +1,24 @@
+"""
+$(TYPEDEF)
+
+Simultaneous CTMRG for triangular PEPS and classical networks, with direct Ta/Tb
+updates of all six edge directions. See [`leading_boundary`](@ref) for convergence and truncation diagnostics.
+
+## Constructors
+
+    SimultaneousCTMRGTriangular(; kwargs...)
+
+* `tol::Real=$(Defaults.ctmrg_tol)` : Convergence tolerance for corner and edge spectra.
+* `maxiter::Int=$(Defaults.ctmrg_maxiter)` : Maximum number of CTMRG iterations.
+* `miniter::Int=$(Defaults.ctmrg_miniter)` : Minimum number of CTMRG iterations.
+* `verbosity::Int=$(Defaults.ctmrg_verbosity)` : Output verbosity, as in [`leading_boundary`](@ref).
+* `projector_alg::Symbol=:twothirds` : Corner-projector construction, either `:twothirds` or `:full`.
+* `conditioning::Bool=true` : Square-root SVD conditioning of the Ta/Tb edge split.
+  This does not change the corner projectors; `:full` always splits its opposite
+  corner factor with a square-root SVD, while `:twothirds` uses its factors directly.
+* `trunctype::Symbol=:truncrank` : Keep the initial environment dimension.
+  Use `:FixedSpaceTruncation` to preserve each environment bond space, including its sectors.
+"""
 struct SimultaneousCTMRGTriangular <: CTMRGAlgorithmTriangular
     tol::Float64
     maxiter::Int

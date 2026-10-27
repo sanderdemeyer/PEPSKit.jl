@@ -1,4 +1,24 @@
-#TODO: Add docs and figure
+"""
+$(TYPEDEF)
+
+Triangular corner transfer-matrix environment, with one corner and two edge halves
+(`Ea` and `Eb`, also called Ta and Tb) for each of six directions at every site. The arrays
+are indexed as `[direction, row, column]`, with directions ordered `NW, NE, E, SE, SW, W`.
+
+## Fields
+
+$(TYPEDFIELDS)
+
+## Constructors
+
+    CTMRGEnvTriangular(f, T, D, χspace; unitcell=(1, 1))
+
+Initialize normalized tensors using `f` and scalar type `T`, with uniform virtual
+space `D` and environment space `χspace`. For a PEPS with virtual space `V`, use
+`D = V ⊗ V'`; for a classical network, use its single-layer virtual space.
+The unit-cell size must match the state or network. Use a complex scalar type for
+optimization with [`FixedPointGradient`](@ref).
+"""
 struct CTMRGEnvTriangular{TC, TA, TB}
     "6 x rows x cols array of corner C tensors, where the first dimension specifies the spatial direction"
     C::Array{TC, 3}
