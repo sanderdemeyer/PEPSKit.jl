@@ -420,11 +420,13 @@ end
     expectation(v, op) = dot(v, reshape(convert(Array, op), 2, 2) * v) / dot(v, v)
     expected = 0.0
     expected_horizontal = 0.0
+    terms = Pair[]
     for r in 1:3, c in 1:4
         v = vectors[r, c]
         onsite = real(expectation(v, Sz))
         expected += onsite
         expected_horizontal += onsite
+        push!(terms, ((r, c),) => Sz)
         for (i, (contract, (δr, δc))) in enumerate(zip(contractions, offsets))
             w = vectors[mod1(r + δr, 3), mod1(c + δc, 4)]
             n = dot(v, v) * dot(w, w)
@@ -434,10 +436,27 @@ end
             @test contract((r, c), network, env, ops[i]) / n ≈ bond
             expected += real(bond)
             i == 1 && (expected_horizontal += real(bond))
+            push!(terms, ((r, c), (r + δr, c + δc)) => ops[i])
         end
     end
     @test PEPSKit.energy(state, env, Sz, ops) ≈ expected
     @test PEPSKit.energy(state, env, Sz, ops[1]) ≈ expected_horizontal
+
+    H = LocalOperator(physicalspace(state), terms)
+    @test expectation_value(state, H, env) ≈ expected
+    @test expectation_value(state, im * H, env) ≈ im * expected
+    @test cost_function(state, env, H) ≈ expected
+    @test iszero(expectation_value(state, LocalOperator(physicalspace(state)), env))
+    @test iszero(expectation_value(InfinitePEPS(pspace, vspace), LocalOperator(fill(pspace, 1, 1)), nothing))
+
+    # Distinct bra/ket and an asymmetric diagonal bond check operator ordering.
+    bra = InfinitePEPSTriangular(map(t -> 2Sx * t, tensors))
+    bond = LocalOperator(physicalspace(state), ((1, 1), (2, 0)) => ops[2])
+    transition(v, op) = dot(reverse(v), reshape(convert(Array, op), 2, 2) * v) / dot(reverse(v), v)
+    @test expectation_value(bra, bond, state, env) ≈ transition(vectors[1, 1], Sy) * transition(vectors[2, 4], Sx)
+    @test_throws ArgumentError expectation_value(state, LocalOperator(fill(pspace, 1, 1), ((1, 1),) => Sz), env)
+    @test_throws ArgumentError expectation_value(state, LocalOperator(physicalspace(state), ((1, 1), (1, 3)) => ops[1]), env)
+    @test_throws ArgumentError expectation_value(state, LocalOperator(physicalspace(state), ((1, 1), (1, 2), (2, 1)) => Sz ⊗ Sz ⊗ Sz), env)
 
     # Spin-1/2 120° product state: each of the three bonds contributes -1/8 per site.
     rotation(θ) = TensorMap([cos(θ / 2) -sin(θ / 2); sin(θ / 2) cos(θ / 2)], pspace, pspace)

@@ -9,6 +9,32 @@ function network_value(network::InfiniteTriangularNetwork, env::CTMRGEnvTriangul
     end
 end
 
+function local_expectation_value(
+        inds, bra::InfinitePEPSTriangular, operator::AbstractTensorMap,
+        ket::InfinitePEPSTriangular, env::CTMRGEnvTriangular,
+    )
+    site = first(inds)
+    if length(inds) == 1
+        contract = _contract_corners
+    elseif length(inds) == 2
+        offsets = (CartesianIndex(0, 1), CartesianIndex(1, -1), CartesianIndex(1, 0))
+        offset = inds[2] - inds[1]
+        dir = findfirst(==(offset), offsets)
+        if isnothing(dir)
+            dir = findfirst(==(-offset), offsets)
+            isnothing(dir) && throw(ArgumentError("only nearest-neighbor triangular terms are supported"))
+            site = inds[2]
+            operator = permute(operator, ((2, 1), (4, 3)))
+        end
+        contract = (_contract_edges_0, _contract_edges_60, _contract_edges_120)[dir]
+    else
+        throw(ArgumentError("only one-site and two-site triangular terms are supported"))
+    end
+    network = InfiniteTriangularNetwork(ket, bra)
+    site = mod1.(Tuple(site), size(network))
+    return contract(site, network, env, operator) / contract(site, network, env)
+end
+
 function energy(network::InfiniteTriangularNetwork{P}, env::CTMRGEnvTriangular, onesite_op, twosite_op) where {P <: PEPSSandwichTriangular}
     E = sum(Iterators.product(axes(network)...)) do (r, c)
         expval_onesite = _contract_corners((r, c), network, env, onesite_op) / _contract_corners((r, c), network, env)

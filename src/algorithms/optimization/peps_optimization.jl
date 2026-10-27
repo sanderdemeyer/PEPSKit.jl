@@ -1,10 +1,10 @@
 """
-    cost_function(peps::InfinitePEPS, env, O::LocalOperator)
+    cost_function(peps::Union{InfinitePEPS, InfinitePEPSTriangular}, env, O::LocalOperator)
 
 Real part of expectation value of `O`, used as the cost function in variational PEPS optimization.
 Prints a warning if the expectation value yields a finite imaginary part (up to a tolerance).
 """
-function cost_function(peps::InfinitePEPS, env, O::LocalOperator)
+function cost_function(peps::Union{InfinitePEPS, InfinitePEPSTriangular}, env, O::LocalOperator)
     E = MPSKit.expectation_value(peps, O, env)
     ignore_derivatives() do
         isapprox(imag(E), 0; atol = sqrt(eps(real(E)))) ||
