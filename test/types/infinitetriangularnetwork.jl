@@ -62,3 +62,24 @@ end
         @test all(isapprox.(g, 2 .* A))
     end
 end
+
+@testset "Triangular environment types" begin
+    V = ComplexSpace(1)
+    for sandwich in (false, true)
+        env = CTMRGEnvTriangular(ones, Float64, sandwich ? V ⊗ V' : V, V)
+        complex_edges = complex.(env.Ea)
+        for (Ea, Eb, E) in (
+                (env.Ea, env.Eb, eltype(env.Ea)),
+                (complex_edges, env.Eb, eltype(complex_edges)),
+                (env.Ea, complex_edges, eltype(complex_edges)),
+            )
+            env′ = CTMRGEnvTriangular(env.C, Ea, Eb)
+            @test PEPSKit.cornertype(env′) === eltype(env.C)
+            @test PEPSKit.cornertype(typeof(env′)) === eltype(env.C)
+            @test PEPSKit.edgetype(env′) === E
+            @test PEPSKit.edgetype(typeof(env′)) === E
+            @test spacetype(env′) === typeof(V)
+            @test spacetype(typeof(env′)) === typeof(V)
+        end
+    end
+end

@@ -57,9 +57,9 @@ Base.real(env::CTMRGEnvTriangular) = CTMRGEnvTriangular(real.(env.C), real.(env.
 Base.complex(env::CTMRGEnvTriangular) = CTMRGEnvTriangular(complex.(env.C), complex.(env.Ea), complex.(env.Eb))
 
 cornertype(env::CTMRGEnvTriangular) = cornertype(typeof(env))
-cornertype(::Type{CTMRGEnvTriangular{T}}) where {T} = T
+cornertype(::Type{CTMRGEnvTriangular{C, A, B}}) where {C, A, B} = C
 edgetype(env::CTMRGEnvTriangular) = edgetype(typeof(env))
-edgetype(::Type{CTMRGEnvTriangular{T}}) where {T} = T
+edgetype(::Type{CTMRGEnvTriangular{C, A, B}}) where {C, A, B} = promote_type(A, B)
 
 TensorKit.spacetype(::Type{E}) where {E <: CTMRGEnvTriangular} = spacetype(cornertype(E))
 
