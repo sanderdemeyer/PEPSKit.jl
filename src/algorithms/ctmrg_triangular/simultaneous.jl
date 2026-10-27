@@ -34,11 +34,8 @@ function ctmrg_iteration(network::InfiniteTriangularNetwork, env::CTMRGEnvTriang
     env = renormalize_corners!(network, env, Pas, Pbs)
     env = normalize_corners(env)
 
-    Ẽas, Ẽbs, Ẽastr, Ẽbstr = semi_renormalize(network, env, Pas, Pbs, trunc)
-    Qas, Qbs = build_matrix_second_projectors(network, env, Ẽas, Ẽbs, Ẽastr, Ẽbstr, trunc; alg.conditioning)
-
-    env = renormalize_edges(env, Ẽas, Ẽbs, Qas, Qbs)
-    env = normalize_edges(env)
+    mats, env = semi_renormalize(network, env, Pas, Pbs, trunc)
+    env = renormalize_edges(network, env, mats, trunc; alg.conditioning)
     return env, S
 end
 
@@ -66,8 +63,8 @@ function calculate_twothirds_projectors(network::InfiniteTriangularNetwork{P}, e
         ρρ = ρL * ρR
         ρρ /= norm(ρρ)
 
-        trunc = _truncation_strategy(trunc, env.Ea[dir, r, c])
-        U, S, V = svd_trunc(ρρ; trunc)
+        trunc′ = _truncation_strategy(trunc, env.Ea[dir, r, c])
+        U, S, V = svd_trunc(ρρ; trunc = trunc′)
         iqsrtS = sdiag_pow(S, -0.5)
 
         Pb = ρR * V' * iqsrtS
@@ -90,8 +87,8 @@ function calculate_full_projectors(network::InfiniteTriangularNetwork{P}, env, t
         ρρ = ρ̄ᴸ * ρL * ρR * ρ̄ᴿ
         ρρ /= norm(ρρ)
 
-        trunc = _truncation_strategy(trunc, env.Ea[dir, r, c])
-        U, S, Vᴴ = svd_trunc(ρρ; trunc)
+        trunc′ = _truncation_strategy(trunc, env.Ea[dir, r, c])
+        U, S, Vᴴ = svd_trunc(ρρ; trunc = trunc′)
         isqrtS = sdiag_pow(S, -0.5)
         Pb = ρR * ρ̄ᴿ * Vᴴ' * isqrtS
         Pa = isqrtS * U' * ρ̄ᴸ * ρL
@@ -128,87 +125,47 @@ function _permute_edge(t::Union{T1, T2}) where {E, S, T1 <: AbstractTensorMap{E,
 end
 
 function semi_renormalize(network::InfiniteTriangularNetwork, env::CTMRGEnvTriangular, Pas, Pbs, trunc)
-    projectors = dtmap(eachcoordinate(network, 1:6)) do (dir, r, c)
+    edges = dtmap(eachcoordinate(network, 1:6)) do (dir, r, c)
         mat = semi_renormalize_edge(network, env, Pas, Pbs, dir, r, c)
-
-        U, S, V = svd_full(mat)
-
+        trunc′ = _truncation_strategy(trunc, env.Ea[dir, r, c])
+        U, S, V = svd_trunc(mat; trunc = trunc′)
         sqrtS = sdiag_pow(S, 0.5)
-
         Ẽb = U * sqrtS
-        Ẽa = sqrtS * V
-
-        trunc = _truncation_strategy(trunc, env.Ea[dir, r, c])
-
-        P = ignore_derivatives() do
-            I = id(storagetype(S), space(S, 1))
-            (P, _, _), _ = truncate(svd_trunc!, (I, DiagonalTensorMap(S), I), trunc)
-            return P
-        end
-        Ẽbtr = Ẽb * P
-        Ẽatr = _permute_edge(P' * Ẽa)
-
-        return _permute_edge(Ẽa), Ẽb, Ẽatr, Ẽbtr
+        Ẽa = _permute_edge(sqrtS * V)
+        return mat, Ẽa, Ẽb
     end
-    return getindex.(projectors, 1), getindex.(projectors, 2), getindex.(projectors, 3), getindex.(projectors, 4)
+    return getindex.(edges, 1), CTMRGEnvTriangular(env.C, getindex.(edges, 2), getindex.(edges, 3))
 end
 
-function build_matrix_second_projectors(network::InfiniteTriangularNetwork, env::CTMRGEnvTriangular, Ẽas, Ẽbs, Ẽastr, Ẽbstr, trunc; conditioning = true)
-    projectors = dtmap(eachcoordinate(network, 1:6)) do (dir, r, c)
-        trunc = _truncation_strategy(trunc, env.Ea[dir, r, c])
-        σL, σR = build_halfinfinite_projectors(network, env, Ẽas, Ẽbs, Ẽastr, Ẽbstr, dir, r, c)
-        if conditioning
-            σL /= norm(σL)
-            σR /= norm(σR)
-            _, SL, VLᴴ = svd_full(σL)
-            UR, SR, _ = svd_full(σR)
-
-            sqrtSL = sdiag_pow(SL, 0.5)
-            sqrtSR = sdiag_pow(SR, 0.5)
-
-            FLU = sqrtSL * VLᴴ
-            FRU = UR * sqrtSR
-
-            mat = FLU * FRU
-            mat /= norm(mat)
-            WU, SU, QUᴴ = svd_trunc(mat; trunc)
-            isqrtSU = sdiag_pow(SU, -0.5)
-
-            Qa = isqrtSU * WU' * FLU
-            Qb = FRU * QUᴴ' * isqrtSU
-        else
-            mat = σL * σR
-            mat /= norm(mat)
-            U, S, V = svd_trunc(mat; trunc)
-            isqrtS = sdiag_pow(S, -0.5)
-            Qa = isqrtS * U' * σL
-            Qb = σR * V' * isqrtS
-        end
-        return Qa, Qb
+function _truncate_edge(mat, ρL, ρR, trunc; conditioning = true)
+    ρL /= norm(ρL)
+    ρR /= norm(ρR)
+    if conditioning
+        _, SL, VLᴴ = svd_full(ρL)
+        UR, SR, _ = svd_full(ρR)
+        sqrtSL = sdiag_pow(SL, 0.5)
+        sqrtSR = sdiag_pow(SR, 0.5)
+        ρL = sqrtSL * VLᴴ
+        ρR = UR * sqrtSR
     end
-    PL = map(x -> x[1], projectors)
-    PR = map(x -> x[2], projectors)
-    return PL, PR
+
+    ρ = ρL * mat * ρR
+
+    ρ /= norm(ρ)
+    U, S, Vᴴ = svd_trunc(ρ; trunc)
+    isqrtS = sdiag_pow(S, -0.5)
+    Ea = _permute_edge(isqrtS * U' * ρL * mat)
+    Eb = mat * ρR * Vᴴ' * isqrtS
+    return Ea, Eb
 end
 
-function renormalize_edges(env::CTMRGEnvTriangular, Ẽas::Array{T1, 3}, Ẽbs::Array{T1, 3}, Qas::Array{T2, 3}, Qbs::Array{T2, 3}) where {E, S, T1 <: AbstractTensorMap{E, S, 3, 1}, T2 <: AbstractTensorMap{E, S, 1, 1}}
-    new_edges = dtmap(eachcoordinate(env, 1:6)) do (dir, r, c)
-        Eb_new = Ẽbs[dir, r, c] * Qbs[dir, r, c]
-        Ea_new = permute(Qas[dir, r, c] * permute(Ẽas[dir, r, c], ((1,), (2, 3, 4))), ((1, 2, 3), (4,)))
-        return Ea_new, Eb_new
+function renormalize_edges(network::InfiniteTriangularNetwork, env::CTMRGEnvTriangular, mats, trunc; conditioning = true)
+    edges = dtmap(eachcoordinate(network, 1:6)) do (dir, r, c)
+        ρL, ρR = build_halfinfinite_environments(network, env, dir, r, c)
+        trunc′ = _truncation_strategy(trunc, env.Ea[dir, r, c])
+        return _truncate_edge(mats[dir, r, c], ρL, ρR, trunc′; conditioning)
     end
-    Ea = map(x -> x[1], new_edges)
-    Eb = map(x -> x[2], new_edges)
-    return CTMRGEnvTriangular(env.C, Ea, Eb)
-end
-
-function renormalize_edges(env::CTMRGEnvTriangular, Ẽas::Array{T1, 3}, Ẽbs::Array{T1, 3}, Qas::Array{T2, 3}, Qbs::Array{T2, 3}) where {T1 <: CTMRGEdgeTensor, T2 <: CTMRGCornerTensor}
-    new_edges = dtmap(eachcoordinate(env, 1:6)) do (dir, r, c)
-        Eb_new = Ẽbs[dir, r, c] * Qbs[dir, r, c]
-        Ea_new = permute(Qas[dir, r, c] * permute(Ẽas[dir, r, c], ((1,), (2, 3))), ((1, 2), (3,)))
-        return Ea_new, Eb_new
-    end
-    return CTMRGEnvTriangular(env.C, getindex.(new_edges, 1), getindex.(new_edges, 2))
+    return normalize_edges(CTMRGEnvTriangular(env.C, getindex.(edges, 1), getindex.(edges, 2)))
 end
 
 function normalize_corners(env::CTMRGEnvTriangular)

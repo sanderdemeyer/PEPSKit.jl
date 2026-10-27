@@ -41,44 +41,44 @@ function semi_renormalize_edge(network::InfiniteTriangularNetwork{P}, env::CTMRG
     return mat / norm(mat)
 end
 
-function build_halfinfinite_projectors(network::InfiniteTriangularNetwork{P}, env::CTMRGEnvTriangular, Ẽas, Ẽbs, Ẽastr, Ẽbstr, dir, r, c) where {P <: PEPSSandwichTriangular}
-    O_r_c = network[r, c]
-    O_rp2_c = network[_coordinates(dir + 2, 0, r, c, size(network))[2:3]...]
-    @tensor opt = true σL[-1 -2 -3; -4] :=
-        env.C[_coordinates(dir, 0, r, c, size(network))...][1 2 10; 8] *
-        env.C[_coordinates(dir - 1, 0, r, c, size(network))...][4 3 11; 1] *
-        env.C[_coordinates(dir - 2, 0, r, c, size(network))...][6 5 12; 4] *
-        Ẽbs[_coordinates(dir, 1, r, c, size(network))...][8 9 13; -4] *
-        Ẽastr[_coordinates(dir - 3, 0, r, c, size(network))...][-1 7 14; 6] *
-        rotl60(ket(O_r_c), mod(dir - 1, 6))[15 2 9 -2 7 5 3] *
-        conj(rotl60(bra(O_r_c), mod(dir - 1, 6))[15; 10 13 -3 14 12 11])
-    @tensor opt = true σR[-1; -2 -3 -4] :=
-        env.C[_coordinates(dir + 1, 0, r, c, size(network))...][8 2 10; 1] *
-        env.C[_coordinates(dir + 2, 0, r, c, size(network))...][1 3 11; 4] *
-        env.C[_coordinates(dir + 3, 0, r, c, size(network))...][4 5 12; 6] *
-        Ẽbstr[_coordinates(dir + 3, -1, r, c, size(network))...][6 7 13; -2] *
-        Ẽas[_coordinates(dir, 0, r, c, size(network))...][-1 9 14; 8] *
-        rotl60(ket(O_rp2_c), mod(dir - 1, 6))[15; 9 2 3 5 7 -3] *
-        conj(rotl60(bra(O_rp2_c), mod(dir - 1, 6))[15; 14 10 11 12 13 -4])
-    return σL, σR
+function build_halfinfinite_environments(network::InfiniteTriangularNetwork{P}, env::CTMRGEnvTriangular, dir, r, c) where {P <: PEPSSandwichTriangular}
+    rL, cL = _coordinates(dir + 4, 0, r, c, size(network))[2:3]
+    rR, cR = _coordinates(dir + 3, 0, r, c, size(network))[2:3]
+    O_L = network[rL, cL]
+    O_R = network[rR, cR]
+    @tensor opt = true ρL[-1 -2 -3; -4 -5 -6] :=
+        env.C[_coordinates(dir, 0, rL, cL, size(network))...][1 2 10; -4] *
+        env.C[_coordinates(dir - 1, 0, rL, cL, size(network))...][4 3 11; 1] *
+        env.C[_coordinates(dir - 2, 0, rL, cL, size(network))...][6 5 12; 4] *
+        env.Ea[_coordinates(dir + 3, 0, rL, cL, size(network))...][-1 7 14; 6] *
+        rotl60(ket(O_L), mod(dir - 1, 6))[15; 2 -5 -2 7 5 3] *
+        conj(rotl60(bra(O_L), mod(dir - 1, 6))[15; 10 -6 -3 14 12 11])
+    @tensor opt = true ρR[-1 -2 -3; -4 -5 -6] :=
+        env.C[_coordinates(dir + 1, 0, rR, cR, size(network))...][-1 2 10; 1] *
+        env.C[_coordinates(dir + 2, 0, rR, cR, size(network))...][1 3 11; 4] *
+        env.C[_coordinates(dir + 3, 0, rR, cR, size(network))...][4 5 12; 6] *
+        env.Eb[_coordinates(dir + 3, 1, rR, cR, size(network))...][6 7 13; -4] *
+        rotl60(ket(O_R), mod(dir - 1, 6))[15; -2 2 3 5 7 -5] *
+        conj(rotl60(bra(O_R), mod(dir - 1, 6))[15; -3 10 11 12 13 -6])
+    return ρL, ρR
 end
 
-function build_halfinfinite_projectors(network::InfiniteTriangularNetwork{P}, env::CTMRGEnvTriangular, Ẽas, Ẽbs, Ẽastr, Ẽbstr, dir, r, c) where {P <: PFTensorTriangular}
-    @tensor opt = true σL[-1 -2; -3] :=
-        env.C[_coordinates(dir, 0, r, c, size(network))...][1 2; 8] *
-        env.C[_coordinates(dir - 1, 0, r, c, size(network))...][4 3; 1] *
-        env.C[_coordinates(dir - 2, 0, r, c, size(network))...][6 5; 4] *
-        Ẽbs[_coordinates(dir, 1, r, c, size(network))...][8 9; -3] *
-        Ẽastr[_coordinates(dir - 3, 0, r, c, size(network))...][-1 7; 6] *
-        rotl60(network[r, c], mod(dir - 1, 6))[3 5 7; 2 9 -2]
-    @tensor opt = true σR[-1; -2 -3] :=
-        env.C[_coordinates(dir + 1, 0, r, c, size(network))...][8 2; 1] *
-        env.C[_coordinates(dir + 2, 0, r, c, size(network))...][1 3; 4] *
-        env.C[_coordinates(dir + 3, 0, r, c, size(network))...][4 5; 6] *
-        Ẽbstr[_coordinates(dir + 3, -1, r, c, size(network))...][6 7; -2] *
-        Ẽas[_coordinates(dir, 0, r, c, size(network))...][-1 9; 8] *
-        rotl60(network[_coordinates(dir + 2, 0, r, c, size(network))[2:3]...], mod(dir - 1, 6))[-3 7 5; 9 2 3]
-    return σL, σR
+function build_halfinfinite_environments(network::InfiniteTriangularNetwork{P}, env::CTMRGEnvTriangular, dir, r, c) where {P <: PFTensorTriangular}
+    rL, cL = _coordinates(dir + 4, 0, r, c, size(network))[2:3]
+    rR, cR = _coordinates(dir + 3, 0, r, c, size(network))[2:3]
+    @tensor opt = true ρL[-1 -2; -3 -4] :=
+        env.C[_coordinates(dir, 0, rL, cL, size(network))...][1 2; -3] *
+        env.C[_coordinates(dir - 1, 0, rL, cL, size(network))...][4 3; 1] *
+        env.C[_coordinates(dir - 2, 0, rL, cL, size(network))...][6 5; 4] *
+        env.Ea[_coordinates(dir + 3, 0, rL, cL, size(network))...][-1 7; 6] *
+        rotl60(network[rL, cL], mod(dir - 1, 6))[3 5 7; 2 -4 -2]
+    @tensor opt = true ρR[-1 -2; -3 -4] :=
+        env.C[_coordinates(dir + 1, 0, rR, cR, size(network))...][-1 2; 1] *
+        env.C[_coordinates(dir + 2, 0, rR, cR, size(network))...][1 3; 4] *
+        env.C[_coordinates(dir + 3, 0, rR, cR, size(network))...][4 5; 6] *
+        env.Eb[_coordinates(dir + 3, 1, rR, cR, size(network))...][6 7; -3] *
+        rotl60(network[rR, cR], mod(dir - 1, 6))[-4 7 5; -2 2 3]
+    return ρL, ρR
 end
 
 function renormalize_corner_triangular((dir, r, c), network::InfiniteTriangularNetwork{P}, env, Pas, Pbs) where {P <: PFTensorTriangular}

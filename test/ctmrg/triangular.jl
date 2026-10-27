@@ -41,6 +41,104 @@ function classical_ising_triangular(β)
     return TensorMap(o2, ℂ^2 * ℂ^2 * ℂ^2, ℂ^2 * ℂ^2 * ℂ^2)
 end
 
+@testset "CTM_triangular - Direct edge split" begin
+    Random.seed!(19461)
+    vspace = ComplexSpace(2)
+    envspace = ComplexSpace(3)
+    for (V, inds) in ((envspace ⊗ vspace, (3, 2)), (envspace ⊗ vspace ⊗ vspace', (4, 2, 3))), conditioning in (false, true), ill_conditioned in (false, true)
+        mat, ρL, ρR = (randn(ComplexF64, V, V) + 5 * id(V) for _ in 1:3)
+        if ill_conditioned
+            block(ρL, Trivial()) .= Diagonal([ones(dim(V) - 1); 1.0e-14])
+            block(ρR, Trivial()) .= Diagonal([ones(dim(V) - 1); 1.0e-14])
+        end
+        L, R = ρL / norm(ρL), ρR / norm(ρR)
+        if conditioning
+            _, SL, VL = svd_full(L)
+            UR, SR, _ = svd_full(R)
+            L = PEPSKit.sdiag_pow(SL, 0.5) * VL
+            R = UR * PEPSKit.sdiag_pow(SR, 0.5)
+        end
+        ρ = L * mat * R
+        for trunc in (notrunc(), truncrank(3), truncspace(envspace))
+            Ea, Eb = PEPSKit._truncate_edge(mat, ρL, ρR, trunc; conditioning)
+            reconstructed = Eb * permute(Ea, ((1,), inds))
+            U, S, Vᴴ = svd_trunc(ρ / norm(ρ); trunc)
+            @test space(Ea, 1) == space(S, 1)
+            @test L * reconstructed * R ≈ norm(ρ)^2 * U * S * Vᴴ
+            if trunc == notrunc() && !ill_conditioned
+                @test reconstructed / norm(reconstructed) ≈ mat / norm(mat)
+            end
+        end
+    end
+end
+
+@testset "CTM_triangular - Direct edge coordinates" begin
+    Random.seed!(68191)
+    sz = (3, 4)
+    vspace = ComplexSpace(1)
+    offsets = ((-1, 0), (-1, 1), (0, 1), (1, 0), (1, -1), (0, -1))
+    for sandwich in (false, true)
+        tensors = map(Iterators.product(1:sz[1], 1:sz[2])) do _
+            if sandwich
+                V = vspace^3 ⊗ (vspace')^3
+                return randn(ComplexF64, vspace, V), randn(ComplexF64, vspace, V)
+            end
+            return randn(ComplexF64, vspace^3, vspace^3)
+        end
+        network = InfiniteTriangularNetwork(tensors)
+        env = CTMRGEnvTriangular(randn, ComplexF64, sandwich ? vspace ⊗ vspace' : vspace, vspace; unitcell = sz)
+        at(A, d, r, c) = only(A[mod1(d, 6), mod1(r, sz[1]), mod1(c, sz[2])].data)
+        function site(r, c)
+            t = tensors[mod1(r, sz[1]), mod1(c, sz[2])]
+            return sandwich ? only(t[1].data) * conj(only(t[2].data)) : only(t.data)
+        end
+        for dir in 1:6, r in 1:sz[1], c in 1:sz[2]
+            δL, δR = offsets[mod1(dir + 4, 6)], offsets[mod1(dir + 3, 6)]
+            rL, cL = r + δL[1], c + δL[2]
+            rR, cR = r + δR[1], c + δR[2]
+            left = site(rL, cL) * at(env.Ea, dir + 3, rL + δR[1], cL + δR[2])
+            right = site(rR, cR) * at(env.Eb, dir + 3, rR + δL[1], cR + δL[2])
+            for i in 0:2
+                δ = offsets[mod1(dir - i, 6)]
+                left *= at(env.C, dir - i, rL + δ[1], cL + δ[2])
+                δ = offsets[mod1(dir + i + 1, 6)]
+                right *= at(env.C, dir + i + 1, rR + δ[1], cR + δ[2])
+            end
+            ρL, ρR = PEPSKit.build_halfinfinite_environments(network, env, dir, r, c)
+            @test only(ρL.data) ≈ left
+            @test only(ρR.data) ≈ right
+        end
+    end
+end
+
+@testset "CTM_triangular - Simultaneous edge update" begin
+    Random.seed!(38471)
+    vspace = ComplexSpace(2)
+    ket = randn(ComplexF64, ComplexSpace(2), vspace^3 ⊗ (vspace')^3)
+    pf = randn(ComplexF64, vspace^3, vspace^3)
+    for (sandwich, V) in ((pf, vspace), ((ket, ket), vspace ⊗ vspace'))
+        network = InfiniteTriangularNetwork(fill(sandwich, (1, 1)))
+        env = CTMRGEnvTriangular(randn, ComplexF64, V, ComplexSpace(2))
+        trunc = PEPSKit.FixedSpaceTruncation()
+        Pas, Pbs, = PEPSKit.calculate_projectors(network, env, trunc, :twothirds)
+        mats, preliminary = PEPSKit.semi_renormalize(network, env, Pas, Pbs, trunc)
+        for conditioning in (false, true)
+            previous = deepcopy(preliminary)
+            edges = map(PEPSKit.eachcoordinate(network, 1:6)) do (dir, r, c)
+                ρL, ρR = PEPSKit.build_halfinfinite_environments(network, preliminary, dir, r, c)
+                trunc′ = PEPSKit._truncation_strategy(trunc, preliminary.Ea[dir, r, c])
+                return PEPSKit._truncate_edge(mats[dir, r, c], ρL, ρR, trunc′; conditioning)
+            end
+            expected = PEPSKit.normalize_edges(CTMRGEnvTriangular(preliminary.C, getindex.(edges, 1), getindex.(edges, 2)))
+            updated = PEPSKit.renormalize_edges(network, preliminary, mats, trunc; conditioning)
+            @test all(isapprox.(updated.Ea, expected.Ea))
+            @test all(isapprox.(updated.Eb, expected.Eb))
+            @test preliminary.Ea == previous.Ea
+            @test preliminary.Eb == previous.Eb
+        end
+    end
+end
+
 @testset "CTM_triangular - Random tensor" begin
     for conditioning in [true false]
         for projector_alg in [:twothirds :full]
