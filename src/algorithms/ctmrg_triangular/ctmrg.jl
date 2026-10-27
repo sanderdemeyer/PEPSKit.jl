@@ -1,5 +1,10 @@
 abstract type CTMRGAlgorithmTriangular end
 
+function CTMRGAlgorithmTriangular(; alg = :SimultaneousCTMRGTriangular, kwargs...)
+    alg == :SimultaneousCTMRGTriangular || throw(ArgumentError("unknown triangular CTMRG algorithm: $alg"))
+    return SimultaneousCTMRGTriangular(; kwargs...)
+end
+
 """
     leading_boundary(env₀::CTMRGEnvTriangular, network; alg=:SimultaneousCTMRGTriangular, kwargs...)
     leading_boundary(env₀::CTMRGEnvTriangular, network, alg::CTMRGAlgorithmTriangular)

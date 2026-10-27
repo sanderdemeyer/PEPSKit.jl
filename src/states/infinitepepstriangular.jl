@@ -174,6 +174,7 @@ function VI.add!(ψ₁::InfinitePEPSTriangular, ψ₂::InfinitePEPSTriangular, �
     return ψ₁
 end
 VI.add!!(ψ₁::InfinitePEPSTriangular, ψ₂::InfinitePEPSTriangular, α::Number, β::Number) = add!(ψ₁, ψ₂, α, β)
+VI.inner(ψ₁::InfinitePEPSTriangular, ψ₂::InfinitePEPSTriangular) = inner(unitcell(ψ₁), unitcell(ψ₂))
 
 ## Math
 
@@ -186,7 +187,7 @@ end
 Base.:*(α::Number, A::InfinitePEPSTriangular) = InfinitePEPSTriangular(α * unitcell(A))
 Base.:*(A::InfinitePEPSTriangular, α::Number) = α * A
 Base.:/(A::InfinitePEPSTriangular, α::Number) = InfinitePEPSTriangular(unitcell(A) / α)
-LinearAlgebra.dot(A₁::InfinitePEPSTriangular, A₂::InfinitePEPSTriangular) = dot(unitcell(A₁), unitcell(A₂))
+LinearAlgebra.dot(A₁::InfinitePEPSTriangular, A₂::InfinitePEPSTriangular) = inner(A₁, A₂)
 LinearAlgebra.norm(A::InfinitePEPSTriangular) = norm(unitcell(A))
 
 ## (Approximate) equality

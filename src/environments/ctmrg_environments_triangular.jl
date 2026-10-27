@@ -63,6 +63,10 @@ edgetype(::Type{CTMRGEnvTriangular{T}}) where {T} = T
 
 TensorKit.spacetype(::Type{E}) where {E <: CTMRGEnvTriangular} = spacetype(cornertype(E))
 
+function VI.scalartype(::Type{CTMRGEnvTriangular{C, A, B}}) where {C, A, B}
+    return promote_type(scalartype(C), scalartype(A), scalartype(B))
+end
+
 # In-place update of environment
 function update!(env::CTMRGEnvTriangular{T}, env´::CTMRGEnvTriangular{T}) where {T}
     env.C .= env´.C

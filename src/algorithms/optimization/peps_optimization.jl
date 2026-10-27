@@ -62,7 +62,13 @@ function PEPSOptimize(;
         boundary_alg = (;), gradient_alg = (;), optimizer_alg = (;), precondition_alg = (;),
         reuse_env = Defaults.reuse_env, symmetrization = nothing,
     )
-    boundary_algorithm = _alg_or_nt(CTMRGAlgorithm, boundary_alg)
+    boundary_type = if parent_alg(boundary_alg) isa CTMRGAlgorithmTriangular ||
+            (boundary_alg isa NamedTuple && get(boundary_alg, :alg, nothing) == :SimultaneousCTMRGTriangular)
+        CTMRGAlgorithmTriangular
+    else
+        CTMRGAlgorithm
+    end
+    boundary_algorithm = _alg_or_nt(boundary_type, boundary_alg)
     gradient_algorithm = _alg_or_nt(GradientAlgorithm, gradient_alg)
     optimizer_algorithm = _alg_or_nt(OptimKit.OptimizationAlgorithm, optimizer_alg)
     precondition_algorithm = _alg_or_nt(PreconditionAlgorithm, precondition_alg)
@@ -366,14 +372,14 @@ function check_input(::typeof(fixedpoint), peps₀::InfinitePEPSTriangular, env�
 end
 
 """
-    peps_normalize(A::InfinitePEPS)
+    peps_normalize(A::Union{InfinitePEPS, InfinitePEPSTriangular})
 
-Normalize the individual tensors in the unit cell of an `InfinitePEPS` such that they each
+Normalize the individual tensors in the PEPS unit cell such that they each
 have unit Euclidean norm.
 """
-function peps_normalize(A::InfinitePEPS)
+function peps_normalize(A::Union{InfinitePEPS, InfinitePEPSTriangular})
     normalized_tensors = normalize.(unitcell(A))
-    return InfinitePEPS(normalized_tensors)
+    return typeof(A)(normalized_tensors)
 end
 
 """Real part of the Hermitian inner product."""
@@ -386,11 +392,11 @@ $(SIGNATURES)
 Project each direction onto the tangent space of its fixed-norm PEPS tensor using [`project_tangent`](@ref) with the real part of the Hermitian inner product.
 Complex tensors are treated as a real vector space, retaining the tangent phase direction ``i A``.
 """
-function peps_project_tangent(η::InfinitePEPS, peps::InfinitePEPS)
+function peps_project_tangent(η::Union{InfinitePEPS, InfinitePEPSTriangular}, peps::Union{InfinitePEPS, InfinitePEPSTriangular})
     tangents = map(unitcell(η), unitcell(peps)) do direction, A
         return project_tangent(direction, A; inner = real_inner)
     end
-    return InfinitePEPS(tangents)
+    return typeof(peps)(tangents)
 end
 
 """
@@ -414,8 +420,8 @@ function peps_retract(x, η, α)
     env = deepcopy(x[2])
 
     retractions = norm_preserving_retract.(unitcell(peps), unitcell(η), α; inner = real_inner)
-    peps′ = InfinitePEPS(map(first, retractions))
-    ξ = InfinitePEPS(map(last, retractions))
+    peps′ = typeof(peps)(map(first, retractions))
+    ξ = typeof(peps)(map(last, retractions))
 
     return (peps′, env), ξ
 end

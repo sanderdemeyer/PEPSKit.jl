@@ -163,6 +163,5 @@ function select_algorithm(
         ::typeof(leading_boundary), env₀::CTMRGEnvTriangular;
         alg = :SimultaneousCTMRGTriangular, kwargs...,
     )
-    alg == :SimultaneousCTMRGTriangular || throw(ArgumentError("unknown triangular CTMRG algorithm: $alg"))
-    return SimultaneousCTMRGTriangular(; kwargs...)
+    return CTMRGAlgorithmTriangular(; alg, kwargs...)
 end

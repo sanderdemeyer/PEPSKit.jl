@@ -408,6 +408,51 @@ end
     @test_throws ArgumentError fixedpoint(LocalOperator(physicalspace(state)), state, nothing, alg)
 end
 
+@testset "Triangular native optimization" begin
+    P, V = ComplexSpace(2), ComplexSpace(1)
+    Sz = TensorMap([1.0 0; 0 -1] / 2, P, P)
+    for T in (Float64, ComplexF64)
+        tensors = [TensorMap(reshape(T[1, a], 2, 1, 1, 1, 1, 1, 1), P, V^3 ⊗ (V')^3) for a in [0.6 1.3]]
+        state = InfinitePEPSTriangular(tensors)
+        original = deepcopy(state)
+        env = CTMRGEnvTriangular(ones, T, V ⊗ V', V; unitcell = size(state))
+        H = LocalOperator(physicalspace(state), [((1, c),) => Sz for c in 1:2])
+        boundary_alg = (; miniter = 1, maxiter = 1)
+        kwargs = (; boundary_alg, gradient_alg = nothing, precondition_alg = nothing, optimizer_alg = (; maxiter = 2, tol = 0), verbosity = 0)
+        alg = PEPSKit.select_algorithm(fixedpoint, env; kwargs...)
+        @test PEPSKit.parent_alg(alg.boundary_alg) isa SimultaneousCTMRGTriangular
+        direct_alg = PEPSOptimize(; boundary_alg = (; alg = :SimultaneousCTMRGTriangular, miniter = 1, maxiter = 1), gradient_alg = nothing, precondition_alg = nothing)
+        @test direct_alg.boundary_alg isa SimultaneousCTMRGTriangular
+        @test direct_alg.boundary_alg.maxiter == 1
+        @test PEPSKit.adapt_solver(alg.boundary_alg; iter = 2, g_global = 0.1) isa SimultaneousCTMRGTriangular
+        iterations = Int[]
+        finalize! = (x, f, g, iter) -> (push!(iterations, iter); (x, f, g))
+        initial_cost = cost_function(state, env, H)
+        ψ, env′, E, info = if T === Float64
+            fixedpoint(H, state, env, alg; finalize!)
+        else
+            fixedpoint(H, state, env; kwargs..., finalize!)
+        end
+        @test ψ isa typeof(state)
+        @test env′ isa typeof(env)
+        @test E < initial_cost
+        @test E ≈ cost_function(ψ, env′, H)
+        @test all(isapprox.(norm.(unitcell(ψ)), 1))
+        @test state == original
+        @test iterations == [1, 2]
+        @test info.costs[end] ≈ E
+        @test info.last_gradient isa typeof(state)
+        @test all(isfinite, info.gradnorms)
+        @test length(info.contraction_metrics) == length(info.gradnorms_unitcell) == length(info.times) == 2
+
+        @test_throws ArgumentError fixedpoint(H, state, nothing, alg)
+        @test_throws ArgumentError fixedpoint(H, state, env; boundary_alg)
+        @test_throws ArgumentError fixedpoint(H, state, env; boundary_alg, gradient_alg = nothing)
+        @test_throws ArgumentError fixedpoint(H, state, env; kwargs..., symmetrization = Rotate())
+        @test_throws ArgumentError fixedpoint(H, state, env; kwargs..., boundary_alg = SimultaneousCTMRG())
+    end
+end
+
 @testset "Triangular nearest-neighbor energy" begin
     Random.seed!(28514)
     pspace, vspace = ComplexSpace(2), ComplexSpace(1)
