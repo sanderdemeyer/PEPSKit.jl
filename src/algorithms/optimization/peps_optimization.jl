@@ -108,9 +108,9 @@ function _OptimizationAlgorithm(;
 end
 
 """
-    fixedpoint(operator, peps₀::InfinitePEPS, env₀; kwargs...) -> peps_final, env_final, cost_final, info
+    fixedpoint(operator, peps₀::Union{InfinitePEPS, InfinitePEPSTriangular}, env₀; kwargs...) -> peps_final, env_final, cost_final, info
     # expert version:
-    fixedpoint(operator, peps₀::InfinitePEPS, env₀, alg::PEPSOptimize; finalize!=OptimKit._finalize!)
+    fixedpoint(operator, peps₀::Union{InfinitePEPS, InfinitePEPSTriangular}, env₀, alg::PEPSOptimize; finalize!=OptimKit._finalize!)
     
 Find the fixed point of `operator` (i.e. the ground state) starting from `peps₀` according
 to the supplied optimization parameters. The initial environment `env₀` serves as an
@@ -118,7 +118,11 @@ initial guess for the first boundary contraction run. By default, a random initi
 Each local tensor is normalized initially, and optimization preserves its Euclidean norm by projecting gradients and preconditioned directions onto its real tangent space.
 
 The optimization parameters can be supplied via the keyword arguments or directly as a
-`PEPSOptimize` struct. The following keyword arguments are supported:
+`PEPSOptimize` struct. Triangular PEPS currently require `gradient_alg = nothing`
+(differentiate the CTMRG iterations) and `precondition_alg = nothing`. Symmetrization
+and fixed-point differentiation are not yet supported for triangular PEPS.
+
+The following keyword arguments are supported:
 
 ## Keyword arguments
 
@@ -223,13 +227,13 @@ information `NamedTuple` which contains the following entries:
 * `gradnorms_unitcell` : History of gradient norms for each respective unit cell entry.
 * `times` : History of optimization step execution times.
 """
-function fixedpoint(operator, peps₀::InfinitePEPS, env₀; kwargs...)
+function fixedpoint(operator, peps₀::Union{InfinitePEPS, InfinitePEPSTriangular}, env₀; kwargs...)
     extra_kwarg_keys = (:finalize!, :hasconverged, :shouldstop) # these will not be passed to `select_algorithm`, only to the 2nd `fixedpoint` call
     alg = select_algorithm(fixedpoint, env₀; filter(kw -> !(first(kw) in extra_kwarg_keys), kwargs)...)
     return fixedpoint(operator, peps₀, env₀, alg; filter(kw -> first(kw) in extra_kwarg_keys, kwargs)...)
 end
 function fixedpoint(
-        operator, peps₀::InfinitePEPS, env₀, alg::PEPSOptimize;
+        operator, peps₀::Union{InfinitePEPS, InfinitePEPSTriangular}, env₀, alg::PEPSOptimize;
         (finalize!) = OptimKit._finalize!,
         hasconverged = OptimKit.DefaultHasConverged(alg.optimizer_alg.gradtol),
         shouldstop = OptimKit.DefaultShouldStop(alg.optimizer_alg.maxiter),
@@ -344,6 +348,20 @@ function check_input(::typeof(fixedpoint), peps₀, env₀, alg::PEPSOptimize)
         since :fixed mode generally produces complex gauges"
         throw(ArgumentError(msg))
     end
+    return nothing
+end
+
+function check_input(::typeof(fixedpoint), peps₀::InfinitePEPSTriangular, env₀, alg::PEPSOptimize)
+    env₀ isa CTMRGEnvTriangular ||
+        throw(ArgumentError("triangular PEPS optimization requires a CTMRGEnvTriangular environment"))
+    parent_alg(alg.boundary_alg) isa CTMRGAlgorithmTriangular ||
+        throw(ArgumentError("triangular PEPS optimization requires a triangular CTMRG algorithm"))
+    isnothing(alg.gradient_alg) ||
+        throw(ArgumentError("triangular fixed-point differentiation is not supported; set gradient_alg = nothing to differentiate the CTMRG iterations"))
+    isnothing(alg.precondition_alg) ||
+        throw(ArgumentError("triangular preconditioning is not supported; set precondition_alg = nothing"))
+    isnothing(alg.symmetrization) ||
+        throw(ArgumentError("triangular symmetrization is not supported; set symmetrization = nothing"))
     return nothing
 end
 

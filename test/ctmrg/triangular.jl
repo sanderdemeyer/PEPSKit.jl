@@ -399,6 +399,15 @@ end
     @test_throws ArgumentError leading_boundary(env₀, state; alg = :unknown)
 end
 
+@testset "Triangular fixedpoint interface" begin
+    P, V = ComplexSpace(2), ComplexSpace(1)
+    state = InfinitePEPSTriangular(ones(Float64, P, V^3 ⊗ (V')^3))
+    env = CTMRGEnvTriangular(ones, Float64, V ⊗ V', V)
+    alg = PEPSOptimize(SimultaneousCTMRGTriangular(), nothing, OptimKit.LBFGS(), nothing, true, nothing)
+    @test isnothing(PEPSKit.check_input(fixedpoint, state, env, alg))
+    @test_throws ArgumentError fixedpoint(LocalOperator(physicalspace(state)), state, nothing, alg)
+end
+
 @testset "Triangular nearest-neighbor energy" begin
     Random.seed!(28514)
     pspace, vspace = ComplexSpace(2), ComplexSpace(1)
