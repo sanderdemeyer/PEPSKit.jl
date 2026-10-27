@@ -101,19 +101,19 @@ function ChainRulesCore.rrule(::typeof(getproperty), e::CTMRGEnvTriangular, name
     if name === :C
         function C_pullback(ΔC_)
             ΔC = unthunk(ΔC_)
-            return NoTangent(), CTMRGEnvTriangular(ΔC, zerovector(e.Ea), zerovector(e.Eb))
+            return NoTangent(), CTMRGEnvTriangular(ΔC, zerovector(e.Ea), zerovector(e.Eb)), NoTangent()
         end
         return result, C_pullback
     elseif name === :Ea
         function Ea_pullback(ΔEa_)
             ΔEa = unthunk(ΔEa_)
-            return NoTangent(), CTMRGEnvTriangular(zerovector(e.C), ΔEa, zerovector(e.Eb))
+            return NoTangent(), CTMRGEnvTriangular(zerovector(e.C), ΔEa, zerovector(e.Eb)), NoTangent()
         end
         return result, Ea_pullback
     elseif name === :Eb
         function Eb_pullback(ΔEb_)
             ΔEb = unthunk(ΔEb_)
-            return NoTangent(), CTMRGEnvTriangular(zerovector(e.C), zerovector(e.Ea), ΔEb)
+            return NoTangent(), CTMRGEnvTriangular(zerovector(e.C), zerovector(e.Ea), ΔEb), NoTangent()
         end
         return result, Eb_pullback
     else
@@ -121,3 +121,57 @@ function ChainRulesCore.rrule(::typeof(getproperty), e::CTMRGEnvTriangular, name
         throw(ArgumentError("No rrule for getproperty of $name"))
     end
 end
+
+function VI.zerovector(env::CTMRGEnvTriangular, ::Type{S}) where {S <: Number}
+    _zerovector = Base.Fix2(zerovector, S)
+    return CTMRGEnvTriangular(map(_zerovector, env.C), map(_zerovector, env.Ea), map(_zerovector, env.Eb))
+end
+function VI.zerovector!(env::CTMRGEnvTriangular)
+    foreach(zerovector!, env.C)
+    foreach(zerovector!, env.Ea)
+    foreach(zerovector!, env.Eb)
+    return env
+end
+VI.zerovector!!(env::CTMRGEnvTriangular) = zerovector!(env)
+
+function VI.scale(env::CTMRGEnvTriangular, α::Number)
+    _scale = Base.Fix2(scale, α)
+    return CTMRGEnvTriangular(map(_scale, env.C), map(_scale, env.Ea), map(_scale, env.Eb))
+end
+function VI.scale!(env::CTMRGEnvTriangular, α::Number)
+    _scale! = Base.Fix2(scale!, α)
+    foreach(_scale!, env.C)
+    foreach(_scale!, env.Ea)
+    foreach(_scale!, env.Eb)
+    return env
+end
+function VI.scale!(env₁::CTMRGEnvTriangular, env₂::CTMRGEnvTriangular, α::Number)
+    _scale!(x, y) = scale!(x, y, α)
+    foreach(_scale!, env₁.C, env₂.C)
+    foreach(_scale!, env₁.Ea, env₂.Ea)
+    foreach(_scale!, env₁.Eb, env₂.Eb)
+    return env₁
+end
+VI.scale!!(env::CTMRGEnvTriangular, α::Number) = scale!(env, α)
+VI.scale!!(env₁::CTMRGEnvTriangular, env₂::CTMRGEnvTriangular, α::Number) = scale!(env₁, env₂, α)
+
+function VI.add(env₁::CTMRGEnvTriangular, env₂::CTMRGEnvTriangular, α::Number, β::Number)
+    _add(x, y) = add(x, y, α, β)
+    return CTMRGEnvTriangular(
+        map(_add, env₁.C, env₂.C), map(_add, env₁.Ea, env₂.Ea), map(_add, env₁.Eb, env₂.Eb)
+    )
+end
+function VI.add!(env₁::CTMRGEnvTriangular, env₂::CTMRGEnvTriangular, α::Number, β::Number)
+    _add!(x, y) = add!(x, y, α, β)
+    foreach(_add!, env₁.C, env₂.C)
+    foreach(_add!, env₁.Ea, env₂.Ea)
+    foreach(_add!, env₁.Eb, env₂.Eb)
+    return env₁
+end
+VI.add!!(env₁::CTMRGEnvTriangular, env₂::CTMRGEnvTriangular, α::Number, β::Number) = add!(env₁, env₂, α, β)
+
+# Exploiting the fact that VectorInterface works for tuples:
+function VI.inner(env₁::CTMRGEnvTriangular, env₂::CTMRGEnvTriangular)
+    return inner((env₁.C, env₁.Ea, env₁.Eb), (env₂.C, env₂.Ea, env₂.Eb))
+end
+VI.norm(env::CTMRGEnvTriangular) = norm((env.C, env.Ea, env.Eb))

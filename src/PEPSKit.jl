@@ -158,6 +158,7 @@ include("algorithms/contractions/triangular_ctmrg/expectation_value.jl")
 include("algorithms/ctmrg_triangular/ctmrg.jl")
 include("algorithms/ctmrg_triangular/utility.jl")
 include("algorithms/ctmrg_triangular/simultaneous.jl")
+include("algorithms/ctmrg_triangular/gaugefix.jl")
 
 include("algorithms/compress/local.jl")
 

@@ -445,11 +445,102 @@ end
         @test all(isfinite, info.gradnorms)
         @test length(info.contraction_metrics) == length(info.gradnorms_unitcell) == length(info.times) == 2
 
+        if T === ComplexF64
+            ψfixed, envfixed, Efixed, infofixed = fixedpoint(
+                H, state, env; kwargs..., gradient_alg = (; tol = 1.0e-8),
+                boundary_alg = (; miniter = 2, maxiter = 10, tol = 1.0e-10),
+            )
+            @test Efixed ≈ E
+            @test infofixed.costs ≈ info.costs
+            @test infofixed.gradnorms ≈ info.gradnorms
+            @test Efixed ≈ cost_function(ψfixed, envfixed, H)
+        else
+            @test_throws ArgumentError fixedpoint(H, state, env; kwargs..., gradient_alg = (;))
+        end
+        @test_throws ArgumentError fixedpoint(H, state, env; kwargs..., gradient_alg = (; alg = :ImplicitGradient))
         @test_throws ArgumentError fixedpoint(H, state, nothing, alg)
         @test_throws ArgumentError fixedpoint(H, state, env; boundary_alg)
         @test_throws ArgumentError fixedpoint(H, state, env; boundary_alg, gradient_alg = nothing)
         @test_throws ArgumentError fixedpoint(H, state, env; kwargs..., symmetrization = Rotate())
         @test_throws ArgumentError fixedpoint(H, state, env; kwargs..., boundary_alg = SimultaneousCTMRG())
+    end
+end
+
+@testset "Triangular gauge fixing" begin
+    Random.seed!(63412)
+    for (V, χ, sandwich) in (
+            (ComplexSpace(2), ComplexSpace(2), false),
+            (ComplexSpace(2), ComplexSpace(2), true),
+            (Z2Space(0 => 1, 1 => 1), Z2Space(0 => 1, 1 => 1), true),
+        )
+        sz = (2, 3) # diagonal boundaries traverse both unit-cell axes
+        env = CTMRGEnvTriangular(randn, ComplexF64, sandwich ? V ⊗ V' : V, χ; unitcell = sz)
+        signs = map((:Ea, :Eb)) do _
+            map(env.C) do t
+                first(left_orth(randn(ComplexF64, space(t, 1), space(t, 1)); positive = true))
+            end
+        end
+        rotated = PEPSKit.fix_relative_phases(env, (; Ea = signs[1], Eb = signs[2]))
+        original = deepcopy(env)
+        # Check that the gauges cancel in the physical boundary contractions.
+        network = if sandwich
+            InfiniteTriangularNetwork(InfinitePEPSTriangular([randn(ComplexF64, V, V^3 ⊗ (V')^3) for _ in 1:sz[1], _ in 1:sz[2]]))
+        else
+            InfiniteTriangularNetwork([randn(ComplexF64, V^3, V^3) for _ in 1:sz[1], _ in 1:sz[2]])
+        end
+        for contract in (PEPSKit._contract_corners, PEPSKit._contract_edges_0, PEPSKit._contract_edges_60, PEPSKit._contract_edges_120)
+            @test contract((1, 2), network, rotated) ≈ contract((1, 2), network, env)
+        end
+        rotated = CTMRGEnvTriangular(im .* rotated.C, -rotated.Ea, -im .* rotated.Eb)
+        fixed = PEPSKit.gauge_fix(rotated, env, PEPSKit.ScramblingEnvGauge())
+        @test PEPSKit.calc_elementwise_convergence(env, fixed) < 1.0e-10
+        @test (env.C, env.Ea, env.Eb) == (original.C, original.Ea, original.Eb)
+        different = CTMRGEnvTriangular(ones, ComplexF64, sandwich ? V ⊗ V' : V, χ; unitcell = (1, 1))
+        @test_throws ArgumentError PEPSKit.gauge_fix(different, env, PEPSKit.ScramblingEnvGauge())
+    end
+end
+
+@testset "Triangular fixed-point differentiation" begin
+    Random.seed!(48531)
+    V = ComplexSpace(2)
+    fields = [0.02 -0.03]
+    β = 0.1
+    W = sqrt(Symmetric([exp(β / 2) exp(-β / 2); exp(-β / 2) exp(β / 2)]))
+    state = InfinitePEPSTriangular(
+        map(fields) do h
+            data = [exp(h * (3 - 2s) / 2 + im * h * s) * prod(W[s, i] for i in Tuple(I)) for s in 1:2, I in CartesianIndices((2, 2, 2, 2, 2, 2))]
+            TensorMap(data, V, V^3 ⊗ (V')^3)
+        end
+    )
+    Sz = TensorMap(ComplexF64[1 0; 0 -1] / 2, V, V)
+    H = LocalOperator(physicalspace(state), [((1, c),) => Sz for c in 1:2])
+    direction = InfinitePEPSTriangular(map(t -> Sz * t, unitcell(state)))
+    env₀ = CTMRGEnvTriangular(ones, ComplexF64, V ⊗ V', V; unitcell = size(state))
+    gradalg = PEPSKit.FixedPointGradient(; solver_alg = (; alg = :GMRES, krylovdim = 30), tol = 1.0e-8, maxiter = 10, verbosity = 0)
+    for (projector_alg, conditioning) in ((:twothirds, false), (:full, true))
+        alg = SimultaneousCTMRGTriangular(; projector_alg, conditioning, maxiter = 200, miniter = 4, tol = 1.0e-10, verbosity = 0)
+        env, info = leading_boundary(env₀, state, alg)
+        @test info.converged
+        env′, = PEPSKit.ctmrg_iteration(InfiniteTriangularNetwork(state), env, PEPSKit._set_fixed_truncation(alg))
+        fixed = PEPSKit.gauge_fix(env′, env, PEPSKit.ScramblingEnvGauge())
+        @test PEPSKit.calc_elementwise_convergence(env, fixed) < 1.0e-7
+        E, gs = withgradient(state) do A
+            env′, = PEPSKit.hook_pullback(leading_boundary, env, A, alg; alg_rrule = gradalg)
+            cost_function(A, env′, H)
+        end
+        g = only(gs)
+        @test g isa typeof(state)
+        # The custom rule reconverges from env before evaluating the energy.
+        env_ref, = leading_boundary(env, state, alg)
+        @test E ≈ cost_function(state, env_ref, H)
+        ε = 1.0e-4
+        energies = map((-ε, ε)) do step
+            A = state + step * direction
+            env′, info′ = leading_boundary(env, A, alg)
+            @test info′.converged
+            cost_function(A, env′, H)
+        end
+        @test real(dot(g, direction)) ≈ (energies[2] - energies[1]) / (2ε) rtol = 1.0e-5
     end
 end
 

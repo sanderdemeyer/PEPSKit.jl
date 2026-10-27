@@ -124,9 +124,9 @@ initial guess for the first boundary contraction run. By default, a random initi
 Each local tensor is normalized initially, and optimization preserves its Euclidean norm by projecting gradients and preconditioned directions onto its real tangent space.
 
 The optimization parameters can be supplied via the keyword arguments or directly as a
-`PEPSOptimize` struct. Triangular PEPS currently require `gradient_alg = nothing`
-(differentiate the CTMRG iterations) and `precondition_alg = nothing`. Symmetrization
-and fixed-point differentiation are not yet supported for triangular PEPS.
+`PEPSOptimize` struct. Triangular PEPS support `FixedPointGradient` with a complex
+environment, or `gradient_alg = nothing` to differentiate the CTMRG iterations.
+They require `precondition_alg = nothing`; symmetrization is not yet supported.
 
 The following keyword arguments are supported:
 
@@ -362,8 +362,9 @@ function check_input(::typeof(fixedpoint), peps₀::InfinitePEPSTriangular, env�
         throw(ArgumentError("triangular PEPS optimization requires a CTMRGEnvTriangular environment"))
     parent_alg(alg.boundary_alg) isa CTMRGAlgorithmTriangular ||
         throw(ArgumentError("triangular PEPS optimization requires a triangular CTMRG algorithm"))
-    isnothing(alg.gradient_alg) ||
-        throw(ArgumentError("triangular fixed-point differentiation is not supported; set gradient_alg = nothing to differentiate the CTMRG iterations"))
+    if parent_alg(alg.gradient_alg) isa FixedPointGradient && scalartype(env₀) <: Real
+        throw(ArgumentError("triangular fixed-point differentiation requires a complex environment because gauge fixing generally produces complex gauges"))
+    end
     isnothing(alg.precondition_alg) ||
         throw(ArgumentError("triangular preconditioning is not supported; set precondition_alg = nothing"))
     isnothing(alg.symmetrization) ||
