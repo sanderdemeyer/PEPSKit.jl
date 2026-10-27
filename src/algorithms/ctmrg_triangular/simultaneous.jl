@@ -136,15 +136,19 @@ function semi_renormalize(network::InfiniteTriangularNetwork, env::CTMRGEnvTrian
         sqrtS = sdiag_pow(S, 0.5)
 
         Ẽb = U * sqrtS
-        Ẽa = _permute_edge(sqrtS * V)
+        Ẽa = sqrtS * V
 
         trunc = _truncation_strategy(trunc, env.Ea[dir, r, c])
-        Utr, Str, Vtr = svd_trunc(mat; trunc)
-        sqrt_Str = sdiag_pow(Str, 0.5)
-        Ẽbtr = Utr * sqrt_Str
-        Ẽatr = _permute_edge(sqrt_Str * Vtr)
 
-        return Ẽa, Ẽb, Ẽatr, Ẽbtr
+        P = ignore_derivatives() do
+            I = id(storagetype(S), space(S, 1))
+            (P, _, _), _ = truncate(svd_trunc!, (I, DiagonalTensorMap(S), I), trunc)
+            return P
+        end
+        Ẽbtr = Ẽb * P
+        Ẽatr = _permute_edge(P' * Ẽa)
+
+        return _permute_edge(Ẽa), Ẽb, Ẽatr, Ẽbtr
     end
     return getindex.(projectors, 1), getindex.(projectors, 2), getindex.(projectors, 3), getindex.(projectors, 4)
 end
