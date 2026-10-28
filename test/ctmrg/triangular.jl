@@ -7,6 +7,7 @@ using OptimKit
 using Zygote
 using LinearAlgebra
 using KrylovKit
+using Logging
 
 using PEPSKit: unitcell, norm_preserving_retract
 
@@ -69,6 +70,29 @@ end
                 @test reconstructed / norm(reconstructed) ≈ mat / norm(mat)
             end
         end
+    end
+end
+
+@testset "CTM_triangular - SVD pullback settings" begin
+    Random.seed!(21735)
+    V = ℂ^2 ⊗ ℂ^2
+    for T in (Float64, ComplexF64), pullback in (:FullPullback, :TruncPullback)
+        tensors = ntuple(_ -> randn(T, V, V) + 5 * id(V), 3)
+        directions = map(t -> normalize(randn(T, space(t))), tensors)
+        target = randn(T, V, V)
+        decomposition_alg = SVDAdjoint(; fwd_alg = (; alg = :QRIteration), rrule_alg = (; alg = pullback, verbosity = 0))
+        loss = function (mat, L, R)
+            Ea, Eb, = PEPSKit._truncate_edge(mat, L, R, truncrank(2), decomposition_alg)
+            return real(dot(target, Eb * permute(Ea, ((1,), (3, 2)))))
+        end
+        result = @test_logs min_level = Logging.Warn withgradient(loss, tensors...)
+        ε = 1.0e-5
+        for i in 1:3
+            plus = Base.setindex(tensors, tensors[i] + ε * directions[i], i)
+            minus = Base.setindex(tensors, tensors[i] - ε * directions[i], i)
+            @test real(dot(result.grad[i], directions[i])) ≈ (loss(plus...) - loss(minus...)) / (2ε) rtol = 1.0e-5 atol = 1.0e-7
+        end
+        @test decomposition_alg.fwd_alg isa PEPSKit.MatrixAlgebraKit.QRIteration
     end
 end
 
@@ -397,6 +421,19 @@ end
         @test info′ == info
     end
     @test_throws ArgumentError leading_boundary(env₀, state; alg = :unknown)
+
+    decomposition_alg = SVDAdjoint(; fwd_alg = (; alg = :QRIteration), rrule_alg = (; verbosity = 1))
+    configured = PEPSKit.select_algorithm(leading_boundary, env₀; kwargs..., decomposition_alg)
+    @test configured.decomposition_alg === decomposition_alg
+    @test SimultaneousCTMRGTriangular(; decomposition_alg = (; alg = :QRIteration)).decomposition_alg.fwd_alg isa PEPSKit.MatrixAlgebraKit.QRIteration
+    @test PEPSKit.PEPSOptimize(; boundary_alg = (; alg = :SimultaneousCTMRGTriangular, decomposition_alg), precondition_alg = nothing).boundary_alg.decomposition_alg === decomposition_alg
+    env′, info′ = leading_boundary(env₀, state, configured)
+    @test all(isapprox.(env′.C, env.C))
+    @test all(isapprox.(env′.Ea, env.Ea))
+    @test all(isapprox.(env′.Eb, env.Eb))
+    @test info′.converged == info.converged
+    @test SimultaneousCTMRGTriangular().projector_alg === :twothirds
+    @test PEPSKit._set_fixed_truncation(configured).decomposition_alg === decomposition_alg
 end
 
 @testset "Triangular fixedpoint interface" begin

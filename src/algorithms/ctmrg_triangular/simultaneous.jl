@@ -12,6 +12,9 @@ updates of all six edge directions. See [`leading_boundary`](@ref) for convergen
 * `maxiter::Int=$(Defaults.ctmrg_maxiter)` : Maximum number of CTMRG iterations.
 * `miniter::Int=$(Defaults.ctmrg_miniter)` : Minimum number of CTMRG iterations.
 * `verbosity::Int=$(Defaults.ctmrg_verbosity)` : Output verbosity, as in [`leading_boundary`](@ref).
+* `decomposition_alg::Union{SVDAdjoint,NamedTuple}=(;)` : SVD algorithm and reverse rule,
+  as in square CTMRG. A `NamedTuple` specifies the forward algorithm; use [`SVDAdjoint`](@ref)
+  to configure its pullback. Full corner and edge conditioning require a dense SVD.
 * `projector_alg::Symbol=:twothirds` : Corner-projector construction, either `:twothirds` or `:full`.
 * `conditioning::Bool=true` : Square-root SVD conditioning of the Ta/Tb edge split.
   This does not change the corner projectors; `:full` always splits its opposite
@@ -19,7 +22,7 @@ updates of all six edge directions. See [`leading_boundary`](@ref) for convergen
 * `trunctype::Symbol=:truncrank` : Keep the initial environment dimension.
   Use `:FixedSpaceTruncation` to preserve each environment bond space, including its sectors.
 """
-struct SimultaneousCTMRGTriangular <: CTMRGAlgorithmTriangular
+struct SimultaneousCTMRGTriangular{S <: SVDAdjoint} <: CTMRGAlgorithmTriangular
     tol::Float64
     maxiter::Int
     miniter::Int
@@ -27,6 +30,7 @@ struct SimultaneousCTMRGTriangular <: CTMRGAlgorithmTriangular
     conditioning::Bool
     projector_alg::Symbol
     trunctype::Symbol
+    decomposition_alg::S
 end
 function SimultaneousCTMRGTriangular(;
         tol = Defaults.ctmrg_tol,
@@ -35,9 +39,13 @@ function SimultaneousCTMRGTriangular(;
         verbosity = Defaults.ctmrg_verbosity,
         conditioning = true,
         projector_alg = :twothirds,
-        trunctype = :truncrank
+        trunctype = :truncrank,
+        decomposition_alg = (;)
     )
-    return SimultaneousCTMRGTriangular(tol, maxiter, miniter, verbosity, conditioning, projector_alg, trunctype)
+    if decomposition_alg isa NamedTuple
+        decomposition_alg = SVDAdjoint(; fwd_alg = decomposition_alg)
+    end
+    return SimultaneousCTMRGTriangular(tol, maxiter, miniter, verbosity, conditioning, projector_alg, trunctype, decomposition_alg)
 end
 
 # Based on
@@ -50,13 +58,13 @@ function ctmrg_iteration(network::InfiniteTriangularNetwork, env::CTMRGEnvTriang
     else
         trunc = trunc_type(dim(domain(env.C[1, 1, 1])[1]))
     end
-    Pas, Pbs, S, corner_truncation_error = calculate_projectors(network, env, trunc, alg.projector_alg)
+    Pas, Pbs, S, corner_truncation_error = calculate_projectors(network, env, trunc, alg.projector_alg, alg.decomposition_alg)
 
     env = renormalize_corners!(network, env, Pas, Pbs)
     env = normalize_corners(env)
 
-    mats, env = semi_renormalize(network, env, Pas, Pbs, trunc)
-    env, edge_truncation_error = renormalize_edges(network, env, mats, trunc; alg.conditioning)
+    mats, env = semi_renormalize(network, env, Pas, Pbs, trunc, alg.decomposition_alg)
+    env, edge_truncation_error = renormalize_edges(network, env, mats, trunc, alg.decomposition_alg; alg.conditioning)
     truncation_error = max(corner_truncation_error, edge_truncation_error)
     info = (;
         contraction_metrics = (; truncation_error, corner_truncation_error, edge_truncation_error), S,
@@ -64,11 +72,11 @@ function ctmrg_iteration(network::InfiniteTriangularNetwork, env::CTMRGEnvTriang
     return env, info
 end
 
-function calculate_projectors(network, env, trunc, projector_alg)
+function calculate_projectors(network, env, trunc, projector_alg, decomposition_alg = SVDAdjoint())
     if projector_alg == :full
-        return calculate_full_projectors(network, env, trunc)
+        return calculate_full_projectors(network, env, trunc, decomposition_alg)
     elseif projector_alg == :twothirds
-        return calculate_twothirds_projectors(network, env, trunc)
+        return calculate_twothirds_projectors(network, env, trunc, decomposition_alg)
     else
         @error "projector_alg = $projector_alg not defined"
     end
@@ -95,7 +103,7 @@ end
 
 _normalize_corner_environment(ρ) = ρ / norm(ρ)
 
-function calculate_twothirds_projectors(network::InfiniteTriangularNetwork{P}, env, trunc) where {P}
+function calculate_twothirds_projectors(network::InfiniteTriangularNetwork{P}, env, trunc, decomposition_alg = SVDAdjoint()) where {P}
     projectors = dtmap(eachcoordinate(network, 1:6)) do (dir, r, c)
         ρL = build_double_corner_matrix_triangular(network, env, _prev(dir, 6), r, c)
         ρR = build_double_corner_matrix_triangular(network, env, _next(dir, 6), r, c)
@@ -104,7 +112,8 @@ function calculate_twothirds_projectors(network::InfiniteTriangularNetwork{P}, e
         ρρ = _normalize_corner_environment(ρL * ρR)
 
         trunc′ = _truncation_strategy(trunc, env.Ea[dir, r, c])
-        U, S, V, truncation_error = svd_trunc(ρρ; trunc = trunc′)
+        svd_alg = _set_decomposition_truncation(decomposition_alg, trunc′)
+        U, S, V, truncation_error = svd_trunc(ρρ, svd_alg)
         iqsrtS = sdiag_pow(S, -0.5)
         truncation_error = _relative_truncation_error(S, iqsrtS, truncation_error)
 
@@ -115,13 +124,13 @@ function calculate_twothirds_projectors(network::InfiniteTriangularNetwork{P}, e
     return getindex.(projectors, 1), getindex.(projectors, 2), getindex.(projectors, 3), maximum(x -> x[4], projectors)
 end
 
-function calculate_full_projectors(network::InfiniteTriangularNetwork{P}, env, trunc) where {P}
+function calculate_full_projectors(network::InfiniteTriangularNetwork{P}, env, trunc, decomposition_alg = SVDAdjoint()) where {P}
     projectors = dtmap(eachcoordinate(network, 1:6)) do (dir, r, c)
         ρL = build_double_corner_matrix_triangular(network, env, mod1(dir - 1, 6), r, c)
         ρR = build_double_corner_matrix_triangular(network, env, mod1(dir + 1, 6), r, c)
         ρ̄ = build_double_corner_matrix_triangular(network, env, mod1(dir + 3, 6), r, c)
         ρ̄ = _normalize_corner_environment(ρ̄)
-        Ū, S̄, V̄ᴴ = svd_full(ρ̄)
+        Ū, S̄, V̄ᴴ = svd_full(ρ̄, decomposition_alg)
         sqrtS̄ = sdiag_pow(S̄, 0.5)
         ρ̄ᴿ = Ū * sqrtS̄
         ρ̄ᴸ = sqrtS̄ * V̄ᴴ
@@ -130,7 +139,8 @@ function calculate_full_projectors(network::InfiniteTriangularNetwork{P}, env, t
         ρρ = _normalize_corner_environment(ρL * ρR)
 
         trunc′ = _truncation_strategy(trunc, env.Ea[dir, r, c])
-        U, S, Vᴴ, truncation_error = svd_trunc(ρρ; trunc = trunc′)
+        svd_alg = _set_decomposition_truncation(decomposition_alg, trunc′)
+        U, S, Vᴴ, truncation_error = svd_trunc(ρρ, svd_alg)
         isqrtS = sdiag_pow(S, -0.5)
         truncation_error = _relative_truncation_error(S, isqrtS, truncation_error)
         Pb = ρR * Vᴴ' * isqrtS
@@ -167,11 +177,12 @@ function _permute_edge(t::Union{T1, T2}) where {E, S, T1 <: AbstractTensorMap{E,
     return permute(t, ((1, 3, 4), (2,)))
 end
 
-function semi_renormalize(network::InfiniteTriangularNetwork, env::CTMRGEnvTriangular, Pas, Pbs, trunc)
+function semi_renormalize(network::InfiniteTriangularNetwork, env::CTMRGEnvTriangular, Pas, Pbs, trunc, decomposition_alg = SVDAdjoint())
     edges = dtmap(eachcoordinate(network, 1:6)) do (dir, r, c)
         mat = semi_renormalize_edge(network, env, Pas, Pbs, dir, r, c)
         trunc′ = _truncation_strategy(trunc, env.Ea[dir, r, c])
-        U, S, V = svd_trunc(mat; trunc = trunc′)
+        svd_alg = _set_decomposition_truncation(decomposition_alg, trunc′)
+        U, S, V = svd_trunc(mat, svd_alg)
         sqrtS = sdiag_pow(S, 0.5)
         Ẽb = U * sqrtS
         Ẽa = _permute_edge(sqrtS * V)
@@ -180,12 +191,12 @@ function semi_renormalize(network::InfiniteTriangularNetwork, env::CTMRGEnvTrian
     return getindex.(edges, 1), CTMRGEnvTriangular(env.C, getindex.(edges, 2), getindex.(edges, 3))
 end
 
-function _truncate_edge(mat, ρL, ρR, trunc; conditioning = true)
+function _truncate_edge(mat, ρL, ρR, trunc, decomposition_alg = SVDAdjoint(); conditioning = true)
     ρL /= norm(ρL)
     ρR /= norm(ρR)
     if conditioning
-        _, SL, VLᴴ = svd_full(ρL)
-        UR, SR, _ = svd_full(ρR)
+        _, SL, VLᴴ = svd_full(ρL, decomposition_alg)
+        UR, SR, _ = svd_full(ρR, decomposition_alg)
         sqrtSL = sdiag_pow(SL, 0.5)
         sqrtSR = sdiag_pow(SR, 0.5)
         ρL = sqrtSL * VLᴴ
@@ -195,7 +206,8 @@ function _truncate_edge(mat, ρL, ρR, trunc; conditioning = true)
     ρ = ρL * mat * ρR
 
     ρ /= norm(ρ)
-    U, S, Vᴴ, truncation_error = svd_trunc(ρ; trunc)
+    svd_alg = _set_decomposition_truncation(decomposition_alg, trunc)
+    U, S, Vᴴ, truncation_error = svd_trunc(ρ, svd_alg)
     isqrtS = sdiag_pow(S, -0.5)
     truncation_error = _relative_truncation_error(S, isqrtS, truncation_error)
     Ea = _permute_edge(isqrtS * U' * ρL * mat)
@@ -203,11 +215,11 @@ function _truncate_edge(mat, ρL, ρR, trunc; conditioning = true)
     return Ea, Eb, truncation_error
 end
 
-function renormalize_edges(network::InfiniteTriangularNetwork, env::CTMRGEnvTriangular, mats, trunc; conditioning = true)
+function renormalize_edges(network::InfiniteTriangularNetwork, env::CTMRGEnvTriangular, mats, trunc, decomposition_alg = SVDAdjoint(); conditioning = true)
     edges = dtmap(eachcoordinate(network, 1:6)) do (dir, r, c)
         ρL, ρR = build_halfinfinite_environments(network, env, dir, r, c)
         trunc′ = _truncation_strategy(trunc, env.Ea[dir, r, c])
-        return _truncate_edge(mats[dir, r, c], ρL, ρR, trunc′; conditioning)
+        return _truncate_edge(mats[dir, r, c], ρL, ρR, trunc′, decomposition_alg; conditioning)
     end
     env′ = normalize_edges(CTMRGEnvTriangular(env.C, getindex.(edges, 1), getindex.(edges, 2)))
     return env′, maximum(x -> x[3], edges)

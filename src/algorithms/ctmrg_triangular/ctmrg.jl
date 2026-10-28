@@ -10,7 +10,7 @@ end
     leading_boundary(env₀::CTMRGEnvTriangular, network, alg::CTMRGAlgorithmTriangular)
 
 Keyword arguments are forwarded to `SimultaneousCTMRGTriangular`: `tol`, `maxiter`,
-`miniter`, `verbosity`, `conditioning`, `projector_alg`, and `trunctype`.
+`miniter`, `verbosity`, `decomposition_alg`, `conditioning`, `projector_alg`, and `trunctype`.
 
 Return the contracted environment and convergence information. `info.converged` and
 `info.convergence_error` describe convergence; `info.convergence_metric` is retained as
