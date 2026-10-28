@@ -49,6 +49,43 @@ end
     end
 end
 
+@testset "CTM_triangular - Network value phases" begin
+    V = ComplexSpace(1)
+    for sandwich in (false, true)
+        network = if sandwich
+            A = normalize(ones(Float64, ComplexSpace(2), V^3 ⊗ (V')^3))
+            InfiniteTriangularNetwork(InfinitePEPSTriangular(A; unitcell = (2, 2)))
+        else
+            InfiniteTriangularNetwork(fill(ones(Float64, V^3, V^3), 2, 2))
+        end
+        env = CTMRGEnvTriangular(ones, ComplexF64, sandwich ? V ⊗ V' : V, V; unitcell = size(network))
+        @test network_value(network, env) ≈ 1
+        # Arbitrary boundary phases must cancel across the unit cell.
+        for field in (:C, :Ea, :Eb), phase in (-1, cis(2π / 3))
+            env′ = deepcopy(env)
+            getproperty(env′, field)[3, 1, 1] *= phase
+            @test network_value(network, env′) ≈ 1
+        end
+    end
+
+    # Two negative scalar tensors give a positive value per unit cell.
+    network = InfiniteTriangularNetwork(fill(-ones(Float64, V^3, V^3), 1, 2))
+    env = CTMRGEnvTriangular(ones, ComplexF64, V, V; unitcell = size(network))
+    @test network_value(network, env) ≈ 1
+
+    for α in (1.1, 1.1 + 0.1im)
+        g = only(Zygote.gradient(n -> real(network_value(n, env)), α * network))
+        @test all(t -> t ≈ -conj(α) * ones(Float64, V^3, V^3), unitcell(g))
+    end
+
+    # Taking the cube root must not require cubing the full unit-cell magnitude.
+    for scale in (1.0e-30, 1.0e30)
+        network = InfiniteTriangularNetwork(fill(scale * ones(Float64, V^3, V^3), 2, 2))
+        env = CTMRGEnvTriangular(ones, ComplexF64, V, V; unitcell = size(network))
+        @test network_value(network, env) ≈ scale^length(network)
+    end
+end
+
 @testset "CTM_triangular - Direct edge split" begin
     Random.seed!(19461)
     vspace = ComplexSpace(2)

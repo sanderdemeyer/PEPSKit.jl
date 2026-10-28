@@ -1,12 +1,22 @@
+"""
+    network_value(network::InfiniteTriangularNetwork, env::CTMRGEnvTriangular)
+
+Return the value per unit cell using the principal cube root of the contraction-ratio
+product. Boundary phases cancel before taking the cube root. For general complex
+networks, this estimator determines the phase only modulo `2π/3`.
+"""
 function network_value(network::InfiniteTriangularNetwork, env::CTMRGEnvTriangular)
-    return prod(Iterators.product(axes(network)...)) do (r, c)
+    value = prod(Iterators.product(axes(network)...)) do (r, c)
         nw_corners = complex(_contract_corners((r, c), network, env))
         nw_full = complex(_contract_site_large((r, c), network, env))
         nw_0 = complex(_contract_edges_0((r, c), network, env))
         nw_60 = complex(_contract_edges_60((r, c), network, env))
         nw_120 = complex(_contract_edges_120((r, c), network, env))
-        return (nw_full * nw_corners^2 / (nw_0 * nw_60 * nw_120))^(1 / 3)
+        ratio = nw_full * nw_corners^2 / (nw_0 * nw_60 * nw_120)
+        # Keep the full phase until the unit-cell product, without cubing its magnitude.
+        return cbrt(abs(ratio)) * sign(ratio)
     end
+    return abs(value) * cis(angle(value) / 3)
 end
 
 function local_expectation_value(
