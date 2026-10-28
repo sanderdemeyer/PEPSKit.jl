@@ -42,6 +42,13 @@ function classical_ising_triangular(β)
     return TensorMap(o2, ℂ^2 * ℂ^2 * ℂ^2, ℂ^2 * ℂ^2 * ℂ^2)
 end
 
+@testset "CTM_triangular - Coordinates" begin
+    neighbors = ((3, 1), (3, 2), (1, 2), (2, 1), (2, 4), (1, 4))
+    for dir in 1:6
+        @test PEPSKit._coordinates(dir, 1, 1, (3, 4)) == neighbors[dir]
+    end
+end
+
 @testset "CTM_triangular - Direct edge split" begin
     Random.seed!(19461)
     vspace = ComplexSpace(2)
