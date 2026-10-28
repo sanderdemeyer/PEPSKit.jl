@@ -139,9 +139,9 @@ function ChainRulesCore.rrule(
     return O, getindex_pullback
 end
 
-# specialized PFTensor implementation
+# specialized PFTensorTriangular implementation
 function ChainRulesCore.rrule(
-        ::typeof(Base.getindex), network::InfiniteTriangularNetwork{<:PFTensor}, r::Int, c::Int
+        ::typeof(Base.getindex), network::InfiniteTriangularNetwork{<:PFTensorTriangular}, r::Int, c::Int
     )
     O = network[r, c]
 

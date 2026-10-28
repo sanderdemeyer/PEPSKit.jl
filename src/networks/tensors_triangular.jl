@@ -42,6 +42,8 @@ function PartitionFunctionTensorTriangular(
     return f(T, Wspace ⊗ SWspace ⊗ SEspace ← NWspace ⊗ NEspace ⊗ Espace)
 end
 
+Base.rot180(t::PFTensorTriangular) = permute(t, ((6, 5, 4), (3, 2, 1)))
+
 function virtualspace(t::PFTensorTriangular, dir)
     invp = (4, 5, 6, 3, 2, 1) # internally, virtual directions are ordered as NW, NE, E, SE, SW...
     return space(t, invp[dir])
