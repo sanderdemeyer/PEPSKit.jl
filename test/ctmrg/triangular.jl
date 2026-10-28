@@ -547,6 +547,52 @@ end
     end
 end
 
+@testset "Triangular AF Heisenberg optimization" begin
+    Random.seed!(48631)
+    V = ComplexSpace(2)
+    state = InfinitePEPSTriangular(randn, ComplexF64, V, V)
+    Sx = TensorMap(ComplexF64[0 1; 1 0] / 2, V, V)
+    Sy = TensorMap(ComplexF64[0 -im; im 0] / 2, V, V)
+    Sz = TensorMap(ComplexF64[1 0; 0 -1] / 2, V, V)
+    # Ferromagnetic nearest-neighbor Heisenberg energy per site.
+    h = -(Sx ⊗ Sx + Sy ⊗ Sy + Sz ⊗ Sz)
+    offsets = (CartesianIndex(0, 1), CartesianIndex(1, -1), CartesianIndex(1, 0))
+    H = LocalOperator(physicalspace(state), [(CartesianIndex(1, 1), CartesianIndex(1, 1) + δ) => h for δ in offsets])
+    env₀ = CTMRGEnvTriangular(ones, ComplexF64, V ⊗ V', ComplexSpace(4))
+    boundary_alg = SimultaneousCTMRGTriangular(; projector_alg = :full, tol = 1.0e-10, maxiter = 100, miniter = 4, verbosity = 0)
+    gradient_alg = PEPSKit.FixedPointGradient(; solver_alg = (; alg = :GMRES, krylovdim = 30), tol = 1.0e-8, maxiter = 10, verbosity = 0)
+    env₀, info₀ = leading_boundary(env₀, state, boundary_alg)
+    @test info₀.converged
+    # A mixed one-site density matrix rules out a padded product state.
+    m = [real(expectation_value(state, LocalOperator(physicalspace(state), ((1, 1),) => S), env₀)) for S in (Sx, Sy, Sz)]
+    @test 0.5 ≤ 0.5 + 2sum(abs2, m) < 1 - 1.0e-4
+    E₀ = cost_function(state, env₀, H)
+    ψ, env, E, info = fixedpoint(
+        H, state, env₀; boundary_alg, gradient_alg, precondition_alg = nothing,
+        optimizer_alg = (; maxiter = 1, tol = 0), verbosity = 0,
+    )
+    @test E < E₀
+    @test info.costs[end] ≈ E
+    @test length(info.contraction_metrics) == 1
+    @test all(isfinite, info.gradnorms)
+    @test info.last_gradient isa typeof(ψ)
+    @test isfinite(norm(info.last_gradient)) && norm(info.last_gradient) > 0
+    @test all(isapprox.(norm.(unitcell(ψ)), 1))
+    env′, info′ = leading_boundary(env, ψ, boundary_alg)
+    @test info′.converged
+    @test E ≈ cost_function(ψ, env′, H) atol = 1.0e-8
+    # Check the returned nearest-neighbor gradient along one normalized direction.
+    direction = info.last_gradient / norm(info.last_gradient)
+    ε = 1.0e-4
+    energies = map((-ε, ε)) do step
+        ψ′ = ψ + step * direction
+        env′, info′ = leading_boundary(env, ψ′, boundary_alg)
+        @test info′.converged
+        cost_function(ψ′, env′, H)
+    end
+    @test real(dot(info.last_gradient, direction)) ≈ (energies[2] - energies[1]) / (2ε) rtol = 1.0e-4 atol = 1.0e-6
+end
+
 @testset "Triangular gauge fixing" begin
     Random.seed!(63412)
     for (V, χ, sandwich) in (
