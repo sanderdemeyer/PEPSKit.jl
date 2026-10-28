@@ -15,7 +15,7 @@ updates of all six edge directions. See [`leading_boundary`](@ref) for convergen
 * `decomposition_alg::Union{SVDAdjoint,NamedTuple}=(;)` : SVD algorithm and reverse rule,
   as in square CTMRG. A `NamedTuple` specifies the forward algorithm; use [`SVDAdjoint`](@ref)
   to configure its pullback. Full corner and edge conditioning require a dense SVD.
-* `projector_alg::Symbol=:twothirds` : Corner-projector construction, either `:twothirds` or `:full`.
+* `projector_alg::Symbol=:full` : Corner-projector construction, either `:twothirds` or `:full`.
 * `conditioning::Bool=true` : Square-root SVD conditioning of the Ta/Tb edge split.
   This does not change the corner projectors; `:full` always splits its opposite
   corner factor with a square-root SVD, while `:twothirds` uses its factors directly.
@@ -38,7 +38,7 @@ function SimultaneousCTMRGTriangular(;
         miniter = Defaults.ctmrg_miniter,
         verbosity = Defaults.ctmrg_verbosity,
         conditioning = true,
-        projector_alg = :twothirds,
+        projector_alg = :full,
         trunctype = :truncrank,
         decomposition_alg = (;)
     )

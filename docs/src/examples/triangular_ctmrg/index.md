@@ -17,7 +17,7 @@ on the triangular lattice using [`InfinitePEPSTriangular`](@ref),
 [`CTMRGEnvTriangular`](@ref), and the native [`fixedpoint`](@ref) interface.
 A single-site tensor and fixed 120° sublattice rotations represent a three-sublattice
 state. We start from a seeded random real tensor with `D = 2` and a complex
-environment with `χ = 40`. Check convergence in `χ` before drawing quantitative
+environment with `χ = 32`. Check convergence in `χ` before drawing quantitative
 conclusions from the energy.
 
 From the repository root, prepare the example environment once with
@@ -102,8 +102,8 @@ fixing for fixed-point differentiation requires a complex environment.
 
 [`leading_boundary`](@ref) selects triangular CTMRG from the environment; here we
 also name it explicitly, so the same settings can be passed to the optimizer.
-We choose `projector_alg = :full` for the corner construction; the default
-`:twothirds` uses two thirds of the environment. `conditioning = true` (the default) conditions the direct
+We use the default `projector_alg = :full` for the corner construction.
+The alternative `:twothirds` uses two thirds of the environment. `conditioning = true` (the default) conditions the direct
 Ta/Tb edge split. It does not toggle corner conditioning.
 
 ````julia

@@ -455,7 +455,7 @@ end
     V = ComplexSpace(1)
     state = InfinitePEPSTriangular(ones(ComplexF64, ComplexSpace(2), V^3 ⊗ (V')^3))
     env₀ = CTMRGEnvTriangular(ones, ComplexF64, V ⊗ V', V)
-    kwargs = (; tol = 1.0e-9, maxiter = 2, miniter = 2, verbosity = 0, conditioning = false, projector_alg = :full, trunctype = :FixedSpaceTruncation)
+    kwargs = (; tol = 1.0e-9, maxiter = 2, miniter = 2, verbosity = 0, conditioning = false, trunctype = :FixedSpaceTruncation)
     alg = SimultaneousCTMRGTriangular(; kwargs...)
     @test PEPSKit.select_algorithm(leading_boundary, env₀; kwargs...) == alg
     env, info = leading_boundary(env₀, state, alg)
@@ -476,7 +476,8 @@ end
     @test all(isapprox.(env′.Ea, env.Ea))
     @test all(isapprox.(env′.Eb, env.Eb))
     @test info′.converged == info.converged
-    @test SimultaneousCTMRGTriangular().projector_alg === :twothirds
+    @test SimultaneousCTMRGTriangular().projector_alg === :full
+    @test SimultaneousCTMRGTriangular(; projector_alg = :twothirds).projector_alg === :twothirds
     @test PEPSKit._set_fixed_truncation(configured).decomposition_alg === decomposition_alg
 end
 
