@@ -19,7 +19,7 @@ where the angles denote the directions of the legs with respect to the positive 
            ╱ ╲
           ╱   ╲
          ╱     ╲
-        SW  P  SE
+        SW     SE
 ```
 """
 const PartitionFunctionTensorTriangular{S <: ElementarySpace} = AbstractTensorMap{<:Any, S, 3, 3}
@@ -27,11 +27,11 @@ const PFTensorTriangular = PartitionFunctionTensorTriangular
 
 """
     PartitionFunctionTensorTriangular(f, ::Type{T}, NWspace::S,
-               [NEspace::S], [Espace::S], [SEspace::S], 
-               [SWspace::S], [Wspace::S]) where {T,S<:Union{Int,ElementarySpace}}
-                
-Construct a PartitionFunctionTensorTriangular tensor based on the 
-north-west, north-east, east, south-east, south-west and west spaces
+               [NEspace::S], [Espace::S], [SEspace::S],
+               [SWspace::S], [Wspace::S]) where {T,S<:ElementarySpace}
+
+Construct a `PartitionFunctionTensorTriangular` tensor based on the
+north-west, north-east, east, south-east, south-west and west spaces.
 The tensor elements are generated based on `f` and the element type is specified in `T`.
 """
 function PartitionFunctionTensorTriangular(
@@ -58,11 +58,10 @@ end
 
 Default type for PEPS tensors with a single physical index, and 6 virtual indices,
 conventionally ordered as: ``T : P ← NW ⊗ NE ⊗ E ⊗ SE ⊗ SW ⊗ W``. Here, ``P`` denotes the physical space
-and ``NW``, ``NE``, ``E``, ``SE``, ``SW`` and ``W`` denote the north-west (120°), north-east (60°), 
+and ``NW``, ``NE``, ``E``, ``SE``, ``SW`` and ``W`` denote the north-west (120°), north-east (60°),
 east (0°), south-east (300°), south-west (240°) and west (180°) spaces, respectively,
 where the angles denote the directions of the legs with respect to the positive horizontal axis.
 
-```
 ```
       NW        NE
         ╲       ╱
@@ -74,15 +73,14 @@ where the angles denote the directions of the legs with respect to the positive 
          ╱  |  ╲
         SW  P  SE
 ```
-```
 """
 const PEPSTensorTriangular{S <: ElementarySpace} = AbstractTensorMap{<:Any, S, 1, 6}
 
 """
-    PEPSTensor(f, ::Type{T}, Pspace::S, NWspace::S,
-               [NEspace::S], [Espace::S], [SEspace::S], 
-               [SWspace::S], [Wspace::S]) where {T,S<:Union{Int,ElementarySpace}}
-                
+    PEPSTensorTriangular(f, ::Type{T}, Pspace::S, NWspace::S,
+               [NEspace::S], [Espace::S], [SEspace::S],
+               [SWspace::S], [Wspace::S]) where {T,S<:ElementarySpace}
+
 Construct a PEPS tensor based on the physical, north-west, north-east, east, south-east, south-west and west spaces.
 The tensor elements are generated based on `f` and the element type is specified in `T`.
 """

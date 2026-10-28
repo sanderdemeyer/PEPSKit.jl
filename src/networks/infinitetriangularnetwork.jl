@@ -3,7 +3,7 @@ const PEPSTensorTriangular{S <: ElementarySpace} = AbstractTensorMap{<:Any, S, 1
 """
 $(TYPEDEF)
 
-Contractible square network. Wraps a matrix of 'rank-6-tensor-like' objects.
+Contractible triangular network. Wraps a matrix of 'rank-6-tensor-like' objects.
 
 ## Fields
 
