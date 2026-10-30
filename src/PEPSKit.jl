@@ -90,6 +90,7 @@ include("operators/localoperator/tensorproduct.jl")
 include("operators/localoperator/mpo.jl")
 include("operators/localcircuit.jl")
 include("operators/lattices/squarelattice.jl")
+include("operators/lattices/triangularlattice.jl")
 include("operators/models.jl")
 
 include("environments/ctmrg_environments.jl")
@@ -231,9 +232,9 @@ export gauge_fix
 
 export initialize_mps, initializePEPS
 export ReflectDepth, ReflectWidth, Rotate, RotateReflect
-export symmetrize!, symmetrize_retract_and_finalize!
+export symmetrize!, symmetrize_retract_and_finalize!, TriangularThreeSublattice
 export showtypeofgrad
-export InfiniteSquare, vertices, nearest_neighbours, next_nearest_neighbours
+export InfiniteSquare, InfiniteTriangular, InfiniteTriangularThreeSublattice, sublattice, vertices, nearest_neighbours, next_nearest_neighbours
 export transverse_field_ising,
     heisenberg_XYZ, heisenberg_XXZ, j1_j2_model, bose_hubbard_model
 export pwave_superconductor, hubbard_model, tj_model

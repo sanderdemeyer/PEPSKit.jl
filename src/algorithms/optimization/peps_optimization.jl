@@ -367,8 +367,8 @@ function check_input(::typeof(fixedpoint), pepsâ‚€::InfinitePEPSTriangular, envâ
     end
     isnothing(alg.precondition_alg) ||
         throw(ArgumentError("triangular preconditioning is not supported; set precondition_alg = nothing"))
-    isnothing(alg.symmetrization) ||
-        throw(ArgumentError("triangular symmetrization is not supported; set symmetrization = nothing"))
+    alg.symmetrization isa Union{Nothing, TriangularThreeSublattice} ||
+        throw(ArgumentError("triangular symmetrization only supports TriangularThreeSublattice()"))
     return nothing
 end
 
